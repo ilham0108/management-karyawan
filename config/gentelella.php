@@ -240,7 +240,7 @@ return [
 
         // Each screen can be switched off on its own — a closed system wants
         // login without registration.
-        'register' => true,
+        'register' => false,
         'reset' => true,
 
         // Where a signed-in user lands, and where an unauthenticated one is sent.
