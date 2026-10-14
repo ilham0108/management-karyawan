@@ -50,6 +50,9 @@ class ScannerController extends Controller
                 'npp' => $pegawai->npp,
                 'jabatan' => $pegawai->jabatan?->nama,
                 'status' => $pegawai->status,
+                'profile_photo_url' => $pegawai->profile_photo === null
+                    ? null
+                    : route('pegawai.profile-photo', $pegawai, false),
             ],
         ]);
     }

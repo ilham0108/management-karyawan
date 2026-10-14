@@ -10,11 +10,13 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class PegawaiController extends Controller
 {
@@ -59,6 +61,19 @@ class PegawaiController extends Controller
                 'Cache-Control' => 'private, no-store',
             ],
         );
+    }
+
+    public function profilePhoto(Pegawai $pegawai): StreamedResponse
+    {
+        $path = $pegawai->profile_photo;
+        $disk = Storage::disk('public');
+
+        abort_unless($path !== null && $disk->exists($path), 404);
+
+        return $disk->response($path, basename($path), [
+            'Cache-Control' => 'private, no-store',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     private function ensureQrCode(Pegawai $pegawai): string
@@ -121,7 +136,8 @@ class PegawaiController extends Controller
             1 => 'nama',
             3 => 'npp',
             4 => 'status',
-            5 => 'qr_code',
+            5 => 'profile_photo',
+            6 => 'qr_code',
         ];
         foreach ($validated['order'] ?? [] as $order) {
             $this->applyOrdering($query, $order['column'], $order['dir'], $orderColumns);
@@ -139,15 +155,28 @@ class PegawaiController extends Controller
             e($pegawai->jabatan?->nama ?? ''),
             e($pegawai->npp),
             e($pegawai->status),
+            $pegawai->profile_photo === null
+                ? 'Belum diunggah'
+                : '<button type="button" class="btn btn-outline btn-sm" data-pegawai-profile-photo '.
+                    'data-photo-url="'.e(route('pegawai.profile-photo', $pegawai, false)).'" '.
+                    'data-pegawai-name="'.e($pegawai->nama).'">Lihat Foto</button>',
             $pegawai->qr_code === null ? 'Belum dibuat' : 'Tersedia',
             '<button type="button" class="btn btn-outline btn-sm" data-pegawai-qr '.
-                'data-pegawai-qr-url="'.e(route('pegawai.qr', $pegawai)).'" '.
-                'data-pegawai-qr-download-url="'.e(route('pegawai.qr.download', $pegawai)).'" '.
+                'data-pegawai-qr-url="'.e(route('pegawai.qr', $pegawai, false)).'" '.
+                'data-pegawai-qr-download-url="'.e(route('pegawai.qr.download', $pegawai, false)).'" '.
                 'data-pegawai-name="'.e($pegawai->nama).'" '.
                 'data-pegawai-npp="'.e($pegawai->npp).'" '.
                 'data-pegawai-id="'.e((string) $pegawai->id).'">QR Code</button> '.
-                '<button type="button" class="btn btn-primary btn-sm">Edit</button> '.
-                '<button type="button" class="btn btn-danger btn-sm">Delete</button>',
+                '<button type="button" class="btn btn-primary btn-sm" data-edit-pegawai '.
+                'data-update-url="'.e(route('pegawai.update', $pegawai, false)).'" '.
+                'data-pegawai-id="'.e((string) $pegawai->id).'" '.
+                'data-pegawai-nama="'.e($pegawai->nama).'" '.
+                'data-pegawai-npp="'.e($pegawai->npp).'" '.
+                'data-pegawai-jabatan-id="'.e((string) $pegawai->jabatan_id).'" '.
+                'data-pegawai-status="'.e($pegawai->status).'">Edit</button> '.
+                '<button type="button" class="btn btn-danger btn-sm" data-delete-pegawai '.
+                'data-delete-url="'.e(route('pegawai.destroy', $pegawai, false)).'" '.
+                'data-pegawai-name="'.e($pegawai->nama).'">Hapus</button>',
         ]);
 
         return response()->json([
@@ -177,7 +206,8 @@ class PegawaiController extends Controller
             1 => 'nama',
             3 => 'npp',
             4 => 'status',
-            5 => 'qr_code',
+            5 => 'profile_photo',
+            6 => 'qr_code',
         ];
         $this->applyOrdering(
             $query,
@@ -194,7 +224,7 @@ class PegawaiController extends Controller
                 throw new RuntimeException('Unable to open output stream for employee export.');
             }
 
-            fputcsv($output, ['Name', 'Jabatan', 'NPP', 'Status', 'QR Code']);
+            fputcsv($output, ['Name', 'Jabatan', 'NPP', 'Status', 'Profile Photo', 'QR Code']);
 
             foreach ($query->lazy(500) as $pegawai) {
                 fputcsv($output, [
@@ -202,6 +232,7 @@ class PegawaiController extends Controller
                     $this->spreadsheetSafeValue($pegawai->jabatan?->nama),
                     $this->spreadsheetSafeValue($pegawai->npp),
                     $this->spreadsheetSafeValue($pegawai->status),
+                    $this->spreadsheetSafeValue($pegawai->profile_photo === null ? 'Belum diunggah' : 'Tersedia'),
                     $this->spreadsheetSafeValue($pegawai->qr_code === null ? 'Belum dibuat' : 'Tersedia'),
                 ]);
             }
@@ -213,7 +244,7 @@ class PegawaiController extends Controller
     private function filteredPegawaiQuery(array $filters, string $search): Builder
     {
         $query = Pegawai::query()
-            ->select(['id', 'nama', 'jabatan_id', 'npp', 'status', 'qr_code'])
+            ->select(['id', 'nama', 'jabatan_id', 'npp', 'status', 'profile_photo', 'qr_code'])
             ->with('jabatan:id,nama');
 
         if (! empty($filters['jabatan_id'])) {
@@ -271,9 +302,33 @@ class PegawaiController extends Controller
             'jabatan_id' => ['required', 'integer', 'exists:jabatans,id'],
             'npp' => ['required', 'string', 'max:255'],
             'status' => ['required', 'in:aktif,tidak aktif'],
+            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
 
-        $pegawai = Pegawai::create($validated);
+        $profilePhotoPath = null;
+
+        if ($request->hasFile('profile_photo')) {
+            $profilePhotoPath = $request->file('profile_photo')->store('pegawai/profile-photos', 'public');
+
+            if (! is_string($profilePhotoPath)) {
+                throw new RuntimeException('Unable to store the employee profile photo.');
+            }
+        }
+
+        unset($validated['profile_photo']);
+
+        try {
+            $pegawai = DB::transaction(fn (): Pegawai => Pegawai::create([
+                ...$validated,
+                'profile_photo' => $profilePhotoPath,
+            ]));
+        } catch (Throwable $exception) {
+            if ($profilePhotoPath !== null && ! Storage::disk('public')->delete($profilePhotoPath)) {
+                throw new RuntimeException('Unable to clean up the profile photo after saving the employee failed.', previous: $exception);
+            }
+
+            throw $exception;
+        }
 
         if ($request->expectsJson()) {
             return response()->json([
@@ -285,35 +340,100 @@ class PegawaiController extends Controller
         return to_route('pegawai.index')->with('success', 'Data pegawai berhasil ditambahkan.');
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
+    public function update(Request $request, Pegawai $pegawai): JsonResponse|RedirectResponse
     {
-        //
+        $validated = $request->validate([
+            'nama' => ['required', 'string', 'max:255'],
+            'jabatan_id' => ['required', 'integer', 'exists:jabatans,id'],
+            'npp' => ['required', 'string', 'max:255'],
+            'status' => ['required', 'in:aktif,tidak aktif'],
+            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+        ]);
+
+        $oldProfilePhotoPath = $pegawai->profile_photo;
+        $oldQrCodePath = $pegawai->qr_code;
+        $newProfilePhotoPath = null;
+
+        if ($request->hasFile('profile_photo')) {
+            $newProfilePhotoPath = $request->file('profile_photo')->store('pegawai/profile-photos', 'public');
+
+            if (! is_string($newProfilePhotoPath)) {
+                throw new RuntimeException('Unable to store the employee profile photo.');
+            }
+        }
+
+        unset($validated['profile_photo']);
+
+        $qrDataChanged = $pegawai->nama !== $validated['nama']
+            || $pegawai->npp !== $validated['npp']
+            || (int) $pegawai->jabatan_id !== (int) $validated['jabatan_id']
+            || $pegawai->status !== $validated['status'];
+        $attributes = $validated;
+
+        if ($newProfilePhotoPath !== null) {
+            $attributes['profile_photo'] = $newProfilePhotoPath;
+        }
+
+        if ($qrDataChanged) {
+            $attributes['qr_code'] = null;
+        }
+
+        try {
+            $updated = DB::transaction(fn (): bool => $pegawai->update($attributes));
+
+            if (! $updated) {
+                throw new RuntimeException('Unable to update the employee record.');
+            }
+        } catch (Throwable $exception) {
+            if ($newProfilePhotoPath !== null && ! Storage::disk('public')->delete($newProfilePhotoPath)) {
+                throw new RuntimeException(
+                    'Unable to clean up the replacement profile photo after updating the employee failed.',
+                    previous: $exception,
+                );
+            }
+
+            throw $exception;
+        }
+
+        if ($newProfilePhotoPath !== null && $oldProfilePhotoPath !== $newProfilePhotoPath) {
+            $this->deleteStoredFile('public', $oldProfilePhotoPath);
+        }
+
+        if ($qrDataChanged && $oldQrCodePath !== null) {
+            $this->deleteStoredFile('local', $oldQrCodePath);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Data pegawai berhasil diperbarui.']);
+        }
+
+        return to_route('pegawai.index')->with('success', 'Data pegawai berhasil diperbarui.');
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
+    public function destroy(Request $request, Pegawai $pegawai): JsonResponse|RedirectResponse
     {
-        //
+        $profilePhotoPath = $pegawai->profile_photo;
+        $qrCodePath = $pegawai->qr_code;
+        $deleted = DB::transaction(fn (): ?bool => $pegawai->delete());
+
+        if (! $deleted) {
+            throw new RuntimeException('Unable to delete the employee record.');
+        }
+
+        $this->deleteStoredFile('public', $profilePhotoPath);
+        $this->deleteStoredFile('local', $qrCodePath);
+
+        if ($request->expectsJson()) {
+            return response()->json(['message' => 'Data pegawai berhasil dihapus.']);
+        }
+
+        return to_route('pegawai.index')->with('success', 'Data pegawai berhasil dihapus.');
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
+    private function deleteStoredFile(string $diskName, ?string $path): void
     {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+        if ($path !== null && ! Storage::disk($diskName)->delete($path)) {
+            throw new RuntimeException(sprintf('Unable to delete the employee file "%s".', $path));
+        }
     }
 }

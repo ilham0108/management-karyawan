@@ -14,6 +14,7 @@ class Pegawai extends Model
         'jabatan_id',
         'npp',
         'status',
+        'profile_photo',
         'qr_code',
     ];
 

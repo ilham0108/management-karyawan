@@ -50,18 +50,50 @@ function showFormErrors(form, errors) {
     });
 }
 
+document.addEventListener('change', (event) => {
+    const input = event.target;
+
+    if (!(input instanceof HTMLInputElement) || !input.matches('[data-profile-photo]')) {
+        return;
+    }
+
+    const fileName = input.closest('.file-input')?.querySelector('[data-profile-photo-name]');
+
+    if (fileName) {
+        fileName.textContent = input.files?.[0]?.name || 'Belum ada file dipilih';
+    }
+});
+
 if (addPegawaiButton && pegawaiFormTemplate) {
-    const openPegawaiModal = () => {
+    const openPegawaiModal = (editButton = null) => {
         const form = pegawaiFormTemplate.content.querySelector('form').cloneNode(true);
+        const isEditing = editButton instanceof HTMLButtonElement;
+
+        form.dataset.submitLabel = isEditing ? 'Simpan Perubahan' : 'Simpan Pegawai';
+
+        if (isEditing) {
+            form.action = editButton.dataset.updateUrl;
+            const methodInput = form.querySelector('[data-pegawai-method]');
+            methodInput.value = 'PUT';
+            methodInput.disabled = false;
+            form.elements.namedItem('nama').value = editButton.dataset.pegawaiNama;
+            form.elements.namedItem('npp').value = editButton.dataset.pegawaiNpp;
+            form.elements.namedItem('jabatan_id').value = editButton.dataset.pegawaiJabatanId;
+            form.elements.namedItem('status').value = editButton.dataset.pegawaiStatus;
+            form.querySelector('[data-profile-photo-name]').textContent =
+                'Pilih foto baru jika ingin mengganti foto saat ini';
+            form.querySelector('[data-profile-photo-help]').textContent =
+                'Kosongkan jika foto saat ini tidak ingin diganti. Format JPG, PNG, atau WebP; maksimal 2 MB.';
+        }
 
         showModal({
-            title: 'Tambah Pegawai',
+            title: isEditing ? 'Edit Pegawai' : 'Tambah Pegawai',
             body: form,
             size: 'md',
             actions: [
                 { label: 'Batal', variant: 'outline' },
                 {
-                    label: 'Simpan Pegawai',
+                    label: isEditing ? 'Simpan Perubahan' : 'Simpan Pegawai',
                     variant: 'primary',
                     action: ({ body }) => {
                         body.querySelector('form').requestSubmit();
@@ -73,7 +105,16 @@ if (addPegawaiButton && pegawaiFormTemplate) {
         });
     };
 
-    addPegawaiButton.addEventListener('click', openPegawaiModal);
+    addPegawaiButton.addEventListener('click', () => openPegawaiModal());
+    document.addEventListener('click', (event) => {
+        const editButton = event.target instanceof Element
+            ? event.target.closest('[data-edit-pegawai]')
+            : null;
+
+        if (editButton instanceof HTMLButtonElement) {
+            openPegawaiModal(editButton);
+        }
+    });
 
     if (addPegawaiButton.hasAttribute('data-open-on-load')) {
         openPegawaiModal();
@@ -137,26 +178,110 @@ document.addEventListener('submit', async (event) => {
 
         if (submitButton instanceof HTMLButtonElement && submitButton.isConnected) {
             submitButton.disabled = false;
-            submitButton.textContent = 'Simpan Pegawai';
+            submitButton.textContent = form.dataset.submitLabel || 'Simpan Pegawai';
         }
     }
+});
+
+document.addEventListener('click', (event) => {
+    const deleteButton = event.target instanceof Element
+        ? event.target.closest('[data-delete-pegawai]')
+        : null;
+
+    if (!(deleteButton instanceof HTMLButtonElement)) {
+        return;
+    }
+
+    const message = document.createElement('p');
+    message.textContent = `Yakin ingin menghapus data pegawai "${deleteButton.dataset.pegawaiName}"?`;
+
+    showModal({
+        title: 'Konfirmasi Hapus Pegawai',
+        body: message,
+        size: 'sm',
+        actions: [
+            { label: 'Batal', variant: 'outline' },
+            {
+                label: 'Hapus Pegawai',
+                variant: 'danger',
+                action: ({ dialog }) => {
+                    const confirmButton = dialog.querySelector('.modal-footer .btn-danger');
+                    const table = deleteButton.closest('table');
+                    confirmButton.disabled = true;
+                    confirmButton.textContent = 'Menghapus...';
+
+                    fetch(deleteButton.dataset.deleteUrl, {
+                        method: 'DELETE',
+                        headers: {
+                            Accept: 'application/json',
+                            'X-CSRF-TOKEN': table.dataset.csrfToken,
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                    })
+                        .then(async (response) => {
+                            const result = await response.json();
+
+                            if (!response.ok) {
+                                throw new Error(result.message || 'Data pegawai gagal dihapus.');
+                            }
+
+                            closeModal();
+                            await reloadPegawaiTable();
+                            showToast(result.message, { variant: 'success' });
+                        })
+                        .catch((error) => {
+                            showToast(
+                                error instanceof Error ? error.message : 'Terjadi kesalahan saat menghapus pegawai.',
+                                { variant: 'error' },
+                            );
+                        })
+                        .finally(() => {
+                            if (confirmButton.isConnected) {
+                                confirmButton.disabled = false;
+                                confirmButton.textContent = 'Hapus Pegawai';
+                            }
+                        });
+
+                    return false;
+                },
+            },
+        ],
+    });
 });
 
 const addJabatanButton = document.querySelector('[data-open-jabatan-modal]');
 const jabatanFormTemplate = document.querySelector('#jabatan-modal-template');
 
 if (addJabatanButton && jabatanFormTemplate) {
-    const openJabatanModal = () => {
+    const templateForm = jabatanFormTemplate.content.querySelector('[data-jabatan-form]');
+
+    const openJabatanModal = (editButton = null, preserveInput = false) => {
         const form = jabatanFormTemplate.content.querySelector('form').cloneNode(true);
+        const methodInput = form.querySelector('[data-jabatan-method]');
+        const editingIdInput = form.querySelector('[data-jabatan-editing-id]');
+        const nameInput = form.elements.namedItem('nama');
+        const isEditing = editButton instanceof HTMLButtonElement;
+
+        if (isEditing) {
+            form.action = editButton.dataset.updateUrl;
+            methodInput.value = 'PUT';
+            methodInput.disabled = false;
+            editingIdInput.value = editButton.dataset.jabatanId;
+
+            if (!preserveInput) {
+                nameInput.value = editButton.dataset.jabatanName;
+            }
+        }
 
         showModal({
-            title: 'Tambah Jabatan',
+            title: isEditing ? 'Edit Jabatan' : 'Tambah Jabatan',
             body: form,
             size: 'sm',
             actions: [
                 { label: 'Batal', variant: 'outline' },
                 {
-                    label: 'Simpan Jabatan',
+                    label: isEditing ? 'Simpan Perubahan' : 'Simpan Jabatan',
                     variant: 'primary',
                     action: ({ body }) => {
                         body.querySelector('form').requestSubmit();
@@ -168,12 +293,84 @@ if (addJabatanButton && jabatanFormTemplate) {
         });
     };
 
-    addJabatanButton.addEventListener('click', openJabatanModal);
+    addJabatanButton.addEventListener('click', () => openJabatanModal());
+
+    document.querySelectorAll('[data-edit-jabatan]').forEach((editButton) => {
+        editButton.addEventListener('click', () => openJabatanModal(editButton));
+    });
 
     if (addJabatanButton.hasAttribute('data-open-on-load')) {
-        openJabatanModal();
+        const editingId = templateForm.querySelector('[data-jabatan-editing-id]').value;
+        const editButton = [...document.querySelectorAll('[data-edit-jabatan]')]
+            .find((button) => button.dataset.jabatanId === editingId);
+
+        openJabatanModal(editButton || null, Boolean(editButton));
     }
 }
+
+document.addEventListener('click', (event) => {
+    const deleteButton = event.target instanceof Element
+        ? event.target.closest('[data-delete-jabatan]')
+        : null;
+
+    if (!deleteButton) {
+        return;
+    }
+
+    const deleteForm = deleteButton.closest('form');
+    const message = document.createElement('p');
+
+    message.textContent = `Yakin ingin menghapus jabatan "${deleteButton.dataset.jabatanName}"?`;
+
+    showModal({
+        title: 'Konfirmasi Hapus Jabatan',
+        body: message,
+        size: 'sm',
+        actions: [
+            { label: 'Batal', variant: 'outline' },
+            {
+                label: 'Hapus Jabatan',
+                variant: 'danger',
+                action: () => {
+                    deleteForm.requestSubmit();
+
+                    return false;
+                },
+            },
+        ],
+    });
+});
+
+document.addEventListener('click', (event) => {
+    const photoButton = event.target instanceof Element
+        ? event.target.closest('[data-pegawai-profile-photo]')
+        : null;
+
+    if (!photoButton) {
+        return;
+    }
+
+    const body = document.createElement('div');
+    const image = document.createElement('img');
+    const employeeName = photoButton.dataset.pegawaiName;
+
+    image.src = photoButton.dataset.photoUrl;
+    image.alt = `Foto profil ${employeeName}`;
+    image.className = 'pegawai-profile-photo-preview';
+    image.addEventListener('error', () => {
+        showToast('Foto profil pegawai gagal dimuat.', { variant: 'error' });
+    }, { once: true });
+    body.append(image);
+
+    showModal({
+        title: `Foto Profil: ${employeeName}`,
+        body,
+        size: 'md',
+        actions: [
+            { label: 'Tutup', variant: 'outline' },
+        ],
+    });
+});
 
 document.addEventListener('click', (event) => {
     const qrButton = event.target instanceof Element
@@ -217,6 +414,23 @@ document.addEventListener('click', (event) => {
         size: 'md',
         actions: [
             {
+                label: 'Salin URL QR',
+                variant: 'outline',
+                action: () => {
+                    if (!navigator.clipboard?.writeText) {
+                        showToast('Browser tidak mendukung penyalinan otomatis.', { variant: 'error' });
+
+                        return false;
+                    }
+
+                    navigator.clipboard.writeText(new URL(qrUrl, window.location.href).href)
+                        .then(() => showToast('URL QR Code berhasil disalin.', { variant: 'success' }))
+                        .catch(() => showToast('URL QR Code gagal disalin.', { variant: 'error' }));
+
+                    return false;
+                },
+            },
+            {
                 label: 'Unduh QR',
                 variant: 'primary',
                 action: () => {
@@ -245,6 +459,9 @@ if (qrScanner) {
     const stopButton = qrScanner.querySelector('[data-scanner-stop]');
     const scanAgainButton = qrScanner.querySelector('[data-scanner-again]');
     const resultSection = qrScanner.querySelector('[data-scanner-result]');
+    const resultPhoto = qrScanner.querySelector('[data-result-photo]');
+    const resultPhotoEmpty = qrScanner.querySelector('[data-result-photo-empty]');
+    const activeMessage = qrScanner.querySelector('[data-result-active-message]');
     let codeReader = null;
     let scannerControls = null;
     let cameraStream = null;
@@ -304,11 +521,27 @@ if (qrScanner) {
         checkVideoFrame();
     });
 
+    resultPhoto.addEventListener('error', () => {
+        resultPhoto.hidden = true;
+        resultPhotoEmpty.hidden = false;
+    });
+
     const showPegawai = (pegawai) => {
         qrScanner.querySelector('[data-result-name]').textContent = pegawai.nama;
         qrScanner.querySelector('[data-result-npp]').textContent = pegawai.npp;
         qrScanner.querySelector('[data-result-jabatan]').textContent = pegawai.jabatan || '-';
         qrScanner.querySelector('[data-result-status]').textContent = pegawai.status;
+        resultPhoto.hidden = !pegawai.profile_photo_url;
+        resultPhotoEmpty.hidden = Boolean(pegawai.profile_photo_url);
+        resultPhoto.alt = `Foto profil ${pegawai.nama}`;
+        activeMessage.hidden = pegawai.status !== 'aktif';
+
+        if (pegawai.profile_photo_url) {
+            resultPhoto.src = new URL(pegawai.profile_photo_url, window.location.href).href;
+        } else {
+            resultPhoto.removeAttribute('src');
+        }
+
         resultSection.hidden = false;
         scanAgainButton.disabled = false;
     };

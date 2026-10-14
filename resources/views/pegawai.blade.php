@@ -7,8 +7,8 @@
 @section('content')
     <x-gentelella::card title="Data Pegawai">
         <x-slot:options>
-            <button type="button" class="btn btn-primary btn-sm" data-open-pegawai-modal
-                aria-haspopup="dialog" @if ($errors->any()) data-open-on-load @endif>Tambah Pegawai</button>
+            <button type="button" class="btn btn-primary btn-sm" data-open-pegawai-modal aria-haspopup="dialog"
+                @if ($errors->any()) data-open-on-load @endif>Tambah Pegawai</button>
             <button type="button" class="btn btn-outline btn-sm" data-export-btn>Export Excel (CSV)</button>
         </x-slot>
 
@@ -46,7 +46,7 @@
         <div class="table-responsive pegawai-table-responsive">
             <p class="pegawai-table-hint" aria-hidden="true">Geser tabel ke samping untuk melihat kolom lainnya.</p>
             <table class="table" data-datatable data-ajax="{{ route('pegawai.data') }}" data-page-length="25" data-selectable data-export="pegawai"
-                data-export-url="{{ route('pegawai.export') }}">
+                data-export-url="{{ route('pegawai.export') }}" data-csrf-token="{{ csrf_token() }}">
                 <thead>
                     <tr>
                         <th data-orderable="false"><input type="checkbox" class="row-select-all"></th>
@@ -54,6 +54,7 @@
                         <th>Jabatan</th>
                         <th>NPP</th>
                         <th>Status</th>
+                        <th>Profile Photo</th>
                         <th>QR Code</th>
                         <th data-orderable="false">Actions</th>
                     </tr>
@@ -64,13 +65,14 @@
     </x-gentelella::card>
 
     <template id="pegawai-modal-template">
-        <form method="POST" action="{{ route('pegawai.store') }}" data-pegawai-ajax-form>
+        <form method="POST" action="{{ route('pegawai.store') }}" enctype="multipart/form-data"
+            data-pegawai-ajax-form>
             @csrf
+            <input type="hidden" name="_method" value="" data-pegawai-method disabled>
             <div class="form-row">
                 <div class="form-group">
                     <label for="pegawai-nama" class="form-label">Nama Pegawai</label>
-                    <input id="pegawai-nama" name="nama" type="text" class="form-control" value="{{ old('nama') }}"
-                        maxlength="255" required>
+                    <input id="pegawai-nama" name="nama" type="text" class="form-control" value="{{ old('nama') }}" maxlength="255" required>
                     @error('nama')
                         <div class="form-error" role="alert">{{ $message }}</div>
                     @enderror
@@ -78,8 +80,7 @@
 
                 <div class="form-group">
                     <label for="pegawai-npp" class="form-label">NPP</label>
-                    <input id="pegawai-npp" name="npp" type="text" class="form-control" value="{{ old('npp') }}"
-                        maxlength="255" required>
+                    <input id="pegawai-npp" name="npp" type="text" class="form-control" value="{{ old('npp') }}" maxlength="255" required>
                     @error('npp')
                         <div class="form-error" role="alert">{{ $message }}</div>
                     @enderror
@@ -109,6 +110,20 @@
                         <option value="tidak aktif" @selected(old('status') === 'tidak aktif')>Tidak Aktif</option>
                     </select>
                     @error('status')
+                        <div class="form-error" role="alert">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="form-group">
+                    <label for="pegawai-profile-photo" class="form-label">Profile Photo</label>
+                    <div class="file-input">
+                        <label for="pegawai-profile-photo" class="file-input-trigger">Pilih Foto</label>
+                        <span class="file-input-name" data-profile-photo-name>Belum ada file dipilih</span>
+                        <input id="pegawai-profile-photo" name="profile_photo" type="file"
+                            accept="image/jpeg,image/png,image/webp" data-profile-photo>
+                    </div>
+                    <div class="form-help" data-profile-photo-help>Format JPG, PNG, atau WebP; maksimal 2 MB.</div>
+                    @error('profile_photo')
                         <div class="form-error" role="alert">{{ $message }}</div>
                     @enderror
                 </div>

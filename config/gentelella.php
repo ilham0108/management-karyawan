@@ -20,13 +20,13 @@ return [
     |
     */
 
-    'title' => 'Gentelella',
+    'title' => 'ISF WAINGAPU',
     'title_prefix' => '',
     'title_postfix' => '',
 
-    'brand_name' => 'Gentelella',
-    'brand_suffix' => 'v4',
-    'brand_initial' => 'G',
+    'brand_name' => 'ISF WAINGAPU',
+    'brand_suffix' => '',
+    'brand_initial' => 'IS',
 
     /*
     |--------------------------------------------------------------------------
@@ -180,7 +180,7 @@ return [
     // The Laravel edition's own documentation, not the HTML edition's — the
     // two cover different things, and a Blade developer sent to the static
     // template's docs finds nothing about panels, fields or filters.
-    'docs_url' => 'https://gentelella.colorlib.com/docs/laravel/',
+    'docs_url' => '',
 
     /*
     |--------------------------------------------------------------------------
@@ -198,16 +198,16 @@ return [
 
     'links' => [
         'profile' => null,
-        'settings' => null,
-        'theme' => null,
-        'help' => null,
-        'lock' => null,
+        // 'settings' => null,
+        // 'theme' => null,
+        // 'help' => null,
+        // 'lock' => null,
         'logout' => 'logout',
     ],
-    'search_enabled' => true,
+    'search_enabled' => false,
     'theme_toggle' => true,
-    'notifications_enabled' => true,
-    'messages_enabled' => true,
+    'notifications_enabled' => false,
+    'messages_enabled' => false,
 
     /*
     |--------------------------------------------------------------------------
@@ -215,7 +215,7 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    'footer_left' => 'Gentelella — free admin dashboard template by <a href="https://colorlib.com">Colorlib</a>',
+    'footer_left' => 'ISF WAINGAPU',
     'footer_right' => null,
 
     /*

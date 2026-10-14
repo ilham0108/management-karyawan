@@ -35,6 +35,13 @@
             <section class="pegawai-scanner__result" data-scanner-result aria-labelledby="scanner-result-title"
                 hidden>
                 <h2 id="scanner-result-title">Hasil Scan</h2>
+                <div class="pegawai-scanner__profile">
+                    <img data-result-photo alt="" hidden>
+                    <p data-result-photo-empty hidden>Foto profil tidak tersedia.</p>
+                </div>
+                <p class="pegawai-scanner__active-message" data-result-active-message hidden>
+                    AKTIF SEBAGAI PEGAWAI ISF WAINGAPU
+                </p>
                 <dl>
                     <div><dt>Nama</dt><dd data-result-name></dd></div>
                     <div><dt>NPP</dt><dd data-result-npp></dd></div>
