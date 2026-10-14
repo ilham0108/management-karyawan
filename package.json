@@ -21,6 +21,7 @@
         "@laravel/multiplex": "^0.4.1"
     },
     "dependencies": {
+        "@zxing/browser": "^0.2.1",
         "gentelella": "^4.2.0",
         "sass": "^1.105.1"
     }

@@ -4,10 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Models\Jabatan;
 use App\Models\Pegawai;
+use BaconQrCode\Renderer\GDLibRenderer;
+use BaconQrCode\Writer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use RuntimeException;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PegawaiController extends Controller
@@ -23,6 +29,70 @@ class PegawaiController extends Controller
             'jabatans' => $jabatans,
             'pageTitle' => 'Data Pegawai',
         ]);
+    }
+
+    public function qr(Pegawai $pegawai): Response
+    {
+        $path = $this->ensureQrCode($pegawai);
+        $png = Storage::disk('local')->get($path);
+
+        if (! is_string($png)) {
+            throw new RuntimeException('Unable to read the stored employee QR code.');
+        }
+
+        return new Response($png, 200, [
+            'Content-Type' => 'image/png',
+            'Content-Disposition' => 'inline; filename="qr-pegawai-'.$pegawai->getKey().'.png"',
+            'Cache-Control' => 'private, no-store',
+        ]);
+    }
+
+    public function downloadQr(Pegawai $pegawai): StreamedResponse
+    {
+        $path = $this->ensureQrCode($pegawai);
+
+        return Storage::disk('local')->download(
+            $path,
+            'qr-pegawai-'.$pegawai->getKey().'.png',
+            [
+                'Content-Type' => 'image/png',
+                'Cache-Control' => 'private, no-store',
+            ],
+        );
+    }
+
+    private function ensureQrCode(Pegawai $pegawai): string
+    {
+        $pegawai->loadMissing('jabatan:id,nama');
+
+        $content = json_encode([
+            'id' => $pegawai->getKey(),
+            'nama' => $pegawai->nama,
+            'npp' => $pegawai->npp,
+            'jabatan' => $pegawai->jabatan?->nama,
+            'status' => $pegawai->status,
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $path = sprintf(
+            'pegawai/qr-codes/%s-%s.png',
+            $pegawai->getKey(),
+            hash('sha256', $content),
+        );
+        $disk = Storage::disk('local');
+
+        if (! $disk->exists($path)) {
+            $png = (new Writer(new GDLibRenderer(320, 2)))->writeString($content);
+
+            if (! $disk->put($path, $png)) {
+                throw new RuntimeException('Unable to store the employee QR code.');
+            }
+        }
+
+        if ($pegawai->qr_code !== $path) {
+            $pegawai->forceFill(['qr_code' => $path])->save();
+        }
+
+        return $path;
     }
 
     public function data(Request $request): JsonResponse
@@ -69,8 +139,14 @@ class PegawaiController extends Controller
             e($pegawai->jabatan?->nama ?? ''),
             e($pegawai->npp),
             e($pegawai->status),
-            e($pegawai->qr_code ?? ''),
-            '<button type="button" class="btn btn-primary btn-sm">Edit</button> '.
+            $pegawai->qr_code === null ? 'Belum dibuat' : 'Tersedia',
+            '<button type="button" class="btn btn-outline btn-sm" data-pegawai-qr '.
+                'data-pegawai-qr-url="'.e(route('pegawai.qr', $pegawai)).'" '.
+                'data-pegawai-qr-download-url="'.e(route('pegawai.qr.download', $pegawai)).'" '.
+                'data-pegawai-name="'.e($pegawai->nama).'" '.
+                'data-pegawai-npp="'.e($pegawai->npp).'" '.
+                'data-pegawai-id="'.e((string) $pegawai->id).'">QR Code</button> '.
+                '<button type="button" class="btn btn-primary btn-sm">Edit</button> '.
                 '<button type="button" class="btn btn-danger btn-sm">Delete</button>',
         ]);
 
@@ -115,7 +191,7 @@ class PegawaiController extends Controller
             $output = fopen('php://output', 'w');
 
             if ($output === false) {
-                throw new \RuntimeException('Unable to open output stream for employee export.');
+                throw new RuntimeException('Unable to open output stream for employee export.');
             }
 
             fputcsv($output, ['Name', 'Jabatan', 'NPP', 'Status', 'QR Code']);
@@ -126,7 +202,7 @@ class PegawaiController extends Controller
                     $this->spreadsheetSafeValue($pegawai->jabatan?->nama),
                     $this->spreadsheetSafeValue($pegawai->npp),
                     $this->spreadsheetSafeValue($pegawai->status),
-                    $this->spreadsheetSafeValue($pegawai->qr_code),
+                    $this->spreadsheetSafeValue($pegawai->qr_code === null ? 'Belum dibuat' : 'Tersedia'),
                 ]);
             }
 
@@ -155,8 +231,7 @@ class PegawaiController extends Controller
                 $query->where('nama', 'like', $like)
                     ->orWhereHas('jabatan', fn (Builder $jabatanQuery) => $jabatanQuery->where('nama', 'like', $like))
                     ->orWhere('npp', 'like', $like)
-                    ->orWhere('status', 'like', $like)
-                    ->orWhere('qr_code', 'like', $like);
+                    ->orWhere('status', 'like', $like);
             });
         }
 
@@ -189,20 +264,25 @@ class PegawaiController extends Controller
         return preg_match('/^[\t\r ]*[=+\-@]/', $value) === 1 ? "'".$value : $value;
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
+    public function store(Request $request): JsonResponse|RedirectResponse
     {
-        //
-    }
+        $validated = $request->validate([
+            'nama' => ['required', 'string', 'max:255'],
+            'jabatan_id' => ['required', 'integer', 'exists:jabatans,id'],
+            'npp' => ['required', 'string', 'max:255'],
+            'status' => ['required', 'in:aktif,tidak aktif'],
+        ]);
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
+        $pegawai = Pegawai::create($validated);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Data pegawai berhasil ditambahkan.',
+                'id' => $pegawai->getKey(),
+            ], 201);
+        }
+
+        return to_route('pegawai.index')->with('success', 'Data pegawai berhasil ditambahkan.');
     }
 
     /**

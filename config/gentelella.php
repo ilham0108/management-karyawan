@@ -105,23 +105,28 @@ return [
             'label' => 'Menu Utama',
             'items' => [
                 [
-                    'key'   => 'dashboard',
-                    'text'  => 'Dashboard',
-                    'icon'  => 'dashboard',
+                    'key' => 'dashboard',
+                    'text' => 'Dashboard',
+                    'icon' => 'dashboard',
                     'route' => 'dashboard',
                 ],
                 [
-                    'text'     => 'Data Karyawan',
-                    'icon'     => 'profile',
+                    'text' => 'Data Karyawan',
+                    'icon' => 'profile',
                     'children' => [
                         [
-                            'key'   => 'data-karyawan',
-                            'text'  => 'Data Karyawan',
+                            'key' => 'data-karyawan',
+                            'text' => 'Data Karyawan',
                             'route' => 'pegawai.index',
                         ],
                         [
-                            'key'   => 'master-jabatan',
-                            'text'  => 'Master Jabatan',
+                            'key' => 'scanner',
+                            'text' => 'Scan QR Pegawai',
+                            'route' => 'scanner.index',
+                        ],
+                        [
+                            'key' => 'master-jabatan',
+                            'text' => 'Master Jabatan',
                             'route' => 'jabatan.index',
                         ],
                     ],
@@ -132,15 +137,15 @@ return [
             'label' => 'Sistem',
             'items' => [
                 [
-                    'key'   => 'setting',
-                    'text'  => 'Setting',
-                    'icon'  => 'settings',
+                    'key' => 'setting',
+                    'text' => 'Setting',
+                    'icon' => 'settings',
                     'route' => 'setting.index',
                 ],
                 [
-                    'key'   => 'user',
-                    'text'  => 'User',
-                    'icon'  => 'profile',
+                    'key' => 'user',
+                    'text' => 'User',
+                    'icon' => 'profile',
                     'route' => 'user.index',
                 ],
             ],
