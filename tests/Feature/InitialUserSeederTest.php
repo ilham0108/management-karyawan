@@ -25,6 +25,7 @@ class InitialUserSeederTest extends TestCase
         $user = User::query()->sole();
         $this->assertSame('Administrator ISF', $user->name);
         $this->assertSame('admin@isf-waingapu.test', $user->email);
+        $this->assertSame(User::ROLE_ADMIN, $user->role);
         $this->assertNotNull($user->email_verified_at);
         $this->assertTrue(Hash::check('a-strong-test-password', $user->password));
     }
@@ -44,5 +45,26 @@ class InitialUserSeederTest extends TestCase
         $this->assertDatabaseCount('users', 1);
         $user = User::query()->sole();
         $this->assertTrue(Hash::check('original-test-password', $user->password));
+    }
+
+    public function test_seeder_promotes_an_existing_configured_user_to_verified_admin(): void
+    {
+        config([
+            'initial_user.name' => 'Administrator ISF',
+            'initial_user.email' => 'admin@isf-waingapu.test',
+            'initial_user.password' => 'configured-password',
+        ]);
+        $user = User::factory()->unverified()->create([
+            'email' => 'admin@isf-waingapu.test',
+            'role' => User::ROLE_USER,
+            'password' => Hash::make('existing-password'),
+        ]);
+
+        $this->seed(InitialUserSeeder::class);
+
+        $user->refresh();
+        $this->assertSame(User::ROLE_ADMIN, $user->role);
+        $this->assertNotNull($user->email_verified_at);
+        $this->assertTrue(Hash::check('existing-password', $user->password));
     }
 }

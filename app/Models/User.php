@@ -13,6 +13,15 @@ use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
+    public const ROLE_ADMIN = 'admin';
+
+    public const ROLE_USER = 'user';
+
+    public const ROLES = [
+        self::ROLE_ADMIN,
+        self::ROLE_USER,
+    ];
+
     use HasApiTokens;
 
     /** @use HasFactory<UserFactory> */
@@ -21,6 +30,10 @@ class User extends Authenticatable
     use HasProfilePhoto;
     use Notifiable;
     use TwoFactorAuthenticatable;
+
+    protected $attributes = [
+        'role' => self::ROLE_USER,
+    ];
 
     /**
      * The attributes that are mass assignable.
@@ -31,6 +44,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'role',
     ];
 
     /**

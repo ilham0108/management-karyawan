@@ -119,11 +119,11 @@ return [
                             'text' => 'Data Karyawan',
                             'route' => 'pegawai.index',
                         ],
-                        [
-                            'key' => 'scanner',
-                            'text' => 'Scan QR Pegawai',
-                            'route' => 'scanner.index',
-                        ],
+                        // [
+                        //     'key' => 'scanner',
+                        //     'text' => 'Scan QR Pegawai',
+                        //     'route' => 'scanner.index',
+                        // ],
                         [
                             'key' => 'master-jabatan',
                             'text' => 'Master Jabatan',
@@ -147,6 +147,7 @@ return [
                     'text' => 'User',
                     'icon' => 'profile',
                     'route' => 'user.index',
+                    'can' => 'manage-users',
                 ],
             ],
         ],

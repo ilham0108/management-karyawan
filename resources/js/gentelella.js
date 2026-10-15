@@ -308,6 +308,69 @@ if (addJabatanButton && jabatanFormTemplate) {
     }
 }
 
+const addUserButton = document.querySelector('[data-open-user-modal]');
+const userFormTemplate = document.querySelector('#user-modal-template');
+
+if (addUserButton && userFormTemplate) {
+    const templateForm = userFormTemplate.content.querySelector('[data-user-form]');
+
+    const openUserModal = (editButton = null, preserveInput = false) => {
+        const form = templateForm.cloneNode(true);
+        const methodInput = form.querySelector('[data-user-method]');
+        const editingIdInput = form.querySelector('[data-user-editing-id]');
+        const isEditing = editButton instanceof HTMLButtonElement;
+
+        if (isEditing) {
+            form.action = editButton.dataset.updateUrl;
+            methodInput.value = 'PUT';
+            methodInput.disabled = false;
+            editingIdInput.value = editButton.dataset.userId;
+            form.elements.namedItem('password').required = false;
+            form.elements.namedItem('password_confirmation').required = false;
+            form.querySelector('[data-user-password-help]').textContent =
+                'Kosongkan jika password tidak ingin diubah.';
+
+            if (!preserveInput) {
+                form.elements.namedItem('name').value = editButton.dataset.userName;
+                form.elements.namedItem('email').value = editButton.dataset.userEmail;
+                form.elements.namedItem('role').value = editButton.dataset.userRole;
+            }
+        }
+
+        showModal({
+            title: isEditing ? 'Edit User' : 'Tambah User',
+            body: form,
+            size: 'sm',
+            actions: [
+                { label: 'Batal', variant: 'outline' },
+                {
+                    label: isEditing ? 'Simpan Perubahan' : 'Simpan User',
+                    variant: 'primary',
+                    action: ({ body }) => {
+                        body.querySelector('form').requestSubmit();
+
+                        return false;
+                    },
+                },
+            ],
+        });
+    };
+
+    addUserButton.addEventListener('click', () => openUserModal());
+
+    document.querySelectorAll('[data-edit-user]').forEach((editButton) => {
+        editButton.addEventListener('click', () => openUserModal(editButton));
+    });
+
+    if (addUserButton.hasAttribute('data-open-on-load')) {
+        const editingId = templateForm.querySelector('[data-user-editing-id]').value;
+        const editButton = [...document.querySelectorAll('[data-edit-user]')]
+            .find((button) => button.dataset.userId === editingId);
+
+        openUserModal(editButton || null, Boolean(editButton));
+    }
+}
+
 document.addEventListener('click', (event) => {
     const deleteButton = event.target instanceof Element
         ? event.target.closest('[data-delete-jabatan]')
@@ -330,6 +393,39 @@ document.addEventListener('click', (event) => {
             { label: 'Batal', variant: 'outline' },
             {
                 label: 'Hapus Jabatan',
+                variant: 'danger',
+                action: () => {
+                    deleteForm.requestSubmit();
+
+                    return false;
+                },
+            },
+        ],
+    });
+});
+
+document.addEventListener('click', (event) => {
+    const deleteButton = event.target instanceof Element
+        ? event.target.closest('[data-delete-user]')
+        : null;
+
+    if (!deleteButton) {
+        return;
+    }
+
+    const deleteForm = deleteButton.closest('form');
+    const message = document.createElement('p');
+
+    message.textContent = `Yakin ingin menghapus user "${deleteButton.dataset.userName}"?`;
+
+    showModal({
+        title: 'Konfirmasi Hapus User',
+        body: message,
+        size: 'sm',
+        actions: [
+            { label: 'Batal', variant: 'outline' },
+            {
+                label: 'Hapus User',
                 variant: 'danger',
                 action: () => {
                     deleteForm.requestSubmit();

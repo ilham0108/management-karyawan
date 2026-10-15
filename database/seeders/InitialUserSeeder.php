@@ -32,11 +32,21 @@ class InitialUserSeeder extends Seeder
 
         $user = User::query()->firstOrCreate(
             ['email' => $email],
-            ['name' => $name, 'password' => $password],
+            ['name' => $name, 'password' => $password, 'role' => User::ROLE_ADMIN],
         );
 
-        if ($user->wasRecentlyCreated) {
-            $user->forceFill(['email_verified_at' => now()])->save();
+        $attributes = [];
+
+        if ($user->role !== User::ROLE_ADMIN) {
+            $attributes['role'] = User::ROLE_ADMIN;
+        }
+
+        if ($user->email_verified_at === null) {
+            $attributes['email_verified_at'] = now();
+        }
+
+        if ($attributes !== []) {
+            $user->forceFill($attributes)->save();
         }
     }
 }

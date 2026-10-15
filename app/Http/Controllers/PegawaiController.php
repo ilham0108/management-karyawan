@@ -33,6 +33,13 @@ class PegawaiController extends Controller
         ]);
     }
 
+    public function show(Pegawai $pegawai): View
+    {
+        $pegawai->loadMissing('jabatan:id,nama');
+
+        return view('public_data_pegawai', ['pegawai' => $pegawai]);
+    }
+
     public function qr(Pegawai $pegawai): Response
     {
         $path = $this->ensureQrCode($pegawai);
@@ -78,15 +85,7 @@ class PegawaiController extends Controller
 
     private function ensureQrCode(Pegawai $pegawai): string
     {
-        $pegawai->loadMissing('jabatan:id,nama');
-
-        $content = json_encode([
-            'id' => $pegawai->getKey(),
-            'nama' => $pegawai->nama,
-            'npp' => $pegawai->npp,
-            'jabatan' => $pegawai->jabatan?->nama,
-            'status' => $pegawai->status,
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $content = route('pegawai.show', $pegawai);
 
         $path = sprintf(
             'pegawai/qr-codes/%s-%s.png',
@@ -158,8 +157,8 @@ class PegawaiController extends Controller
             $pegawai->profile_photo === null
                 ? 'Belum diunggah'
                 : '<button type="button" class="btn btn-outline btn-sm" data-pegawai-profile-photo '.
-                    'data-photo-url="'.e(route('pegawai.profile-photo', $pegawai, false)).'" '.
-                    'data-pegawai-name="'.e($pegawai->nama).'">Lihat Foto</button>',
+                'data-photo-url="'.e(route('pegawai.profile-photo', $pegawai, false)).'" '.
+                'data-pegawai-name="'.e($pegawai->nama).'">Lihat Foto</button>',
             $pegawai->qr_code === null ? 'Belum dibuat' : 'Tersedia',
             '<button type="button" class="btn btn-outline btn-sm" data-pegawai-qr '.
                 'data-pegawai-qr-url="'.e(route('pegawai.qr', $pegawai, false)).'" '.
@@ -302,7 +301,7 @@ class PegawaiController extends Controller
             'jabatan_id' => ['required', 'integer', 'exists:jabatans,id'],
             'npp' => ['required', 'string', 'max:255'],
             'status' => ['required', 'in:aktif,tidak aktif'],
-            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5048'],
         ]);
 
         $profilePhotoPath = null;
@@ -347,7 +346,7 @@ class PegawaiController extends Controller
             'jabatan_id' => ['required', 'integer', 'exists:jabatans,id'],
             'npp' => ['required', 'string', 'max:255'],
             'status' => ['required', 'in:aktif,tidak aktif'],
-            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'profile_photo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5048'],
         ]);
 
         $oldProfilePhotoPath = $pegawai->profile_photo;

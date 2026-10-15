@@ -26,6 +26,53 @@ class PegawaiControllerTest extends TestCase
             ->assertSee('Operator');
     }
 
+    public function test_public_pegawai_profile_displays_employee_details_without_authentication(): void
+    {
+        Storage::fake('public');
+        $jabatan = Jabatan::create(['nama' => 'Operator']);
+        $photoPath = UploadedFile::fake()->image('profile-photo.png')
+            ->store('pegawai/profile-photos', 'public');
+        $pegawai = Pegawai::create([
+            'nama' => 'Andi Saputra',
+            'jabatan_id' => $jabatan->id,
+            'npp' => 'NPP-001',
+            'status' => 'aktif',
+            'profile_photo' => $photoPath,
+        ]);
+
+        $this->get(route('pegawai.show', $pegawai))
+            ->assertOk()
+            ->assertViewIs('public_data_pegawai')
+            ->assertSee('Andi Saputra')
+            ->assertSee((string) $pegawai->getKey())
+            ->assertSee('NPP-001')
+            ->assertSee('Operator')
+            ->assertSee('AKTIF SEBAGAI PEGAWAI ISF WAINGAPU')
+            ->assertSee('data-copy-npp="NPP-001"', false)
+            ->assertSee('Salin')
+            ->assertSee(route('pegawai.profile-photo', $pegawai));
+
+        $this->get(route('pegawai.profile-photo', $pegawai))
+            ->assertOk()
+            ->assertHeader('content-type', 'image/png');
+    }
+
+    public function test_public_pegawai_profile_displays_inactive_status_and_photo_fallback(): void
+    {
+        $jabatan = Jabatan::create(['nama' => 'Operator']);
+        $pegawai = Pegawai::create([
+            'nama' => 'Andi Saputra',
+            'jabatan_id' => $jabatan->id,
+            'npp' => 'NPP-002',
+            'status' => 'tidak aktif',
+        ]);
+
+        $this->get(route('pegawai.show', $pegawai))
+            ->assertOk()
+            ->assertSee('TIDAK AKTIF')
+            ->assertSee('Foto profil belum tersedia');
+    }
+
     public function test_store_endpoint_creates_a_pegawai_and_redirects_with_success_message(): void
     {
         $jabatan = Jabatan::create(['nama' => 'Operator']);
@@ -366,8 +413,10 @@ class PegawaiControllerTest extends TestCase
 
         $storedPath = $pegawai->fresh()->qr_code;
         $this->assertNotNull($storedPath);
-        $this->assertStringStartsWith('pegawai/qr-codes/'.$pegawai->id.'-', $storedPath);
-        $this->assertStringEndsWith('.png', $storedPath);
+        $this->assertSame(
+            'pegawai/qr-codes/'.$pegawai->id.'-'.hash('sha256', route('pegawai.show', $pegawai)).'.png',
+            $storedPath,
+        );
         Storage::disk('local')->assertExists($storedPath);
         $this->assertDatabaseHas('pegawais', [
             'id' => $pegawai->id,

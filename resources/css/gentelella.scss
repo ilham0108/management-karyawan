@@ -205,8 +205,256 @@
     object-fit: contain;
 }
 
+.public-pegawai-page {
+    display: grid;
+    min-height: 100vh;
+    place-items: center;
+    box-sizing: border-box;
+    padding: 24px;
+    background: #0b141a;
+    color: #f4f7fa;
+}
+
+.public-pegawai-card {
+    width: min(100%, 560px);
+    overflow: hidden;
+    border: 1px solid #263743;
+    border-radius: 20px;
+    background: #121d27;
+    box-shadow: 0 18px 50px rgb(0 0 0 / 24%);
+}
+
+.public-pegawai-card__header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 28px 24px;
+    background: #123c40;
+}
+
+.public-pegawai-card__photo-frame {
+    display: grid;
+    width: 76px;
+    height: 76px;
+    flex: 0 0 76px;
+    place-items: center;
+    overflow: hidden;
+    border: 2px solid #9cc5c4;
+    border-radius: 17px;
+    background: #1e343b;
+}
+
+.public-pegawai-card__photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.public-pegawai-card__photo-placeholder {
+    display: grid;
+    width: 100%;
+    height: 100%;
+    place-items: center;
+    color: #c3eeee;
+    font-size: 30px;
+    font-weight: 700;
+}
+
+.public-pegawai-card__identity {
+    display: grid;
+    min-width: 0;
+    flex: 1;
+    gap: 6px;
+}
+
+.public-pegawai-card__eyebrow {
+    margin: 0;
+    color: #7bd5d2;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.public-pegawai-card__name {
+    margin: 0;
+    color: #f7fafc;
+    font-size: clamp(22px, 5vw, 27px);
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.public-pegawai-card__status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    justify-self: start;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 5px 10px;
+    border: 1px solid #4b6b70;
+    border-radius: 999px;
+    background: #31545a;
+    color: #f3f8fa;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.public-pegawai-card__status-dot {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 9px;
+    border-radius: 50%;
+    background: #62d6ae;
+    box-shadow: 0 0 0 3px rgb(98 214 174 / 16%);
+}
+
+.public-pegawai-card__status.is-active {
+    text-transform: none;
+}
+
+.public-pegawai-card__status.is-inactive {
+    border-color: #654447;
+    background: #472f35;
+    color: #ffd6d8;
+}
+
+.public-pegawai-card__status.is-inactive .public-pegawai-card__status-dot {
+    background: #ff8288;
+    box-shadow: 0 0 0 3px rgb(255 130 136 / 16%);
+}
+
+.public-pegawai-card__details {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 12px 24px;
+}
+
+.public-pegawai-card__row {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 0;
+}
+
+.public-pegawai-card__row + .public-pegawai-card__row {
+    border-top: 1px solid #263743;
+}
+
+.public-pegawai-card__label {
+    flex: 0 0 72px;
+    color: #84a0b0;
+    font-size: 14px;
+}
+
+.public-pegawai-card__value {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin: 0;
+    color: #f4f7fa;
+    font-size: 16px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.public-pegawai-card__copy {
+    flex: 0 0 auto;
+    padding: 5px 10px;
+    border: 1px solid #263f4d;
+    border-radius: 9px;
+    background: transparent;
+    color: #91b5c4;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.public-pegawai-card__copy:hover,
+.public-pegawai-card__copy:focus-visible {
+    border-color: #4c7685;
+    color: #fff;
+}
+
+.public-pegawai-card__position {
+    max-width: 100%;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: #164c4a;
+    color: #69d5c4;
+    font-size: 13px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+    text-align: right;
+}
+
 .jabatan-delete-form {
     display: inline;
+}
+
+@media (max-width: 480px) {
+    .public-pegawai-page {
+        min-height: 100svh;
+        align-items: start;
+        padding: 10px;
+    }
+
+    .public-pegawai-card {
+        border-radius: 18px;
+    }
+
+    .public-pegawai-card__header {
+        gap: 14px;
+        padding: 24px 20px;
+    }
+
+    .public-pegawai-card__photo-frame {
+        width: 68px;
+        height: 68px;
+        flex-basis: 68px;
+        border-radius: 15px;
+    }
+
+    .public-pegawai-card__eyebrow {
+        font-size: 12px;
+    }
+
+    .public-pegawai-card__status {
+        font-size: 11px;
+    }
+
+    .public-pegawai-card__details {
+        padding: 10px 20px;
+    }
+
+    .public-pegawai-card__row {
+        gap: 8px;
+        padding: 15px 0;
+    }
+
+    .public-pegawai-card__label {
+        flex-basis: 54px;
+        font-size: 13px;
+    }
+
+    .public-pegawai-card__value {
+        gap: 7px;
+        font-size: 14px;
+    }
+
+    .public-pegawai-card__copy {
+        padding: 5px 8px;
+    }
+
+    .public-pegawai-card__position {
+        font-size: 12px;
+    }
 }
 
 @media (max-width: 480px) {
