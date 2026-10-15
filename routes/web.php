@@ -2,7 +2,6 @@
 
 use App\Http\Controllers\JabatanController;
 use App\Http\Controllers\PegawaiController;
-use App\Http\Controllers\ScannerController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -24,9 +23,6 @@ Route::middleware([
     Route::put('/jabatan/{jabatan}', [JabatanController::class, 'update'])->name('jabatan.update');
     Route::delete('/jabatan/{jabatan}', [JabatanController::class, 'destroy'])->name('jabatan.destroy');
 
-    Route::get('/scanner', [ScannerController::class, 'index'])->name('scanner.index');
-    Route::post('/scanner/lookup', [ScannerController::class, 'lookup'])->name('scanner.lookup');
-
     Route::get('/pegawai', [PegawaiController::class, 'index'])->name('pegawai.index');
     Route::post('/pegawai', [PegawaiController::class, 'store'])->name('pegawai.store');
     Route::put('/pegawai/{pegawai}', [PegawaiController::class, 'update'])->name('pegawai.update');
@@ -45,9 +41,7 @@ Route::middleware([
 });
 
 Route::get('/pegawai/{pegawai}/foto', [PegawaiController::class, 'profilePhoto'])
-    ->whereNumber('pegawai')
     ->name('pegawai.profile-photo');
 
 Route::get('/pegawai/{pegawai}', [PegawaiController::class, 'show'])
-    ->whereNumber('pegawai')
     ->name('pegawai.show');

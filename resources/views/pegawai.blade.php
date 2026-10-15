@@ -122,7 +122,7 @@
                         <input id="pegawai-profile-photo" name="profile_photo" type="file"
                             accept="image/jpeg,image/png,image/webp" data-profile-photo>
                     </div>
-                    <div class="form-help" data-profile-photo-help>Format JPG, PNG, atau WebP; maksimal 2 MB.</div>
+                    <div class="form-help" data-profile-photo-help>Format JPG, PNG, atau WebP; maksimal 5 MB.</div>
                     @error('profile_photo')
                         <div class="form-error" role="alert">{{ $message }}</div>
                     @enderror

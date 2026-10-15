@@ -117,6 +117,56 @@
             object-position: center top;
         }
 
+        .pid-card__photo-wrap {
+            position: relative;
+            display: flex;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .pid-card__photo-loading {
+            position: absolute;
+            z-index: 1;
+            inset: 0;
+            display: grid;
+            place-content: center;
+            justify-items: center;
+            gap: 12px;
+            background: rgba(13, 20, 23, .58);
+            color: #fff;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .pid-card__photo-loading[hidden] {
+            display: none;
+        }
+
+        .pid-card__photo-loading.is-error {
+            background: rgba(13, 20, 23, .78);
+        }
+
+        .pid-card__photo-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: pid-photo-spin 700ms linear infinite;
+        }
+
+        @keyframes pid-photo-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .pid-card__photo-spinner {
+                animation-duration: 1400ms;
+            }
+        }
+
         .pid-card__photo-placeholder {
             flex: 1;
             display: grid;
@@ -238,7 +288,14 @@
                 <h1 class="pid-card__name" id="pegawai-name">{{ $pegawai->nama }}</h1>
 
                 @if ($pegawai->profile_photo)
-                    <img class="pid-card__photo" src="{{ route('pegawai.profile-photo', $pegawai) }}" alt="Foto profil {{ $pegawai->nama }}">
+                    <div class="pid-card__photo-wrap" data-photo-container aria-busy="true">
+                        <div class="pid-card__photo-loading" data-photo-loading role="status" aria-live="polite">
+                            <span class="pid-card__photo-spinner" aria-hidden="true"></span>
+                            <span data-photo-loading-message>Memuat foto...</span>
+                        </div>
+                        <img class="pid-card__photo" src="{{ route('pegawai.profile-photo', $pegawai) }}"
+                            alt="Foto profil {{ $pegawai->nama }}" data-profile-photo-image>
+                    </div>
                 @else
                     <div class="pid-card__photo-placeholder" role="img" aria-label="Foto profil belum tersedia">
                         {{ mb_strtoupper(mb_substr($pegawai->nama, 0, 1)) }}
@@ -267,6 +324,36 @@
 
 @push('scripts')
     <script>
+        document.querySelectorAll('[data-profile-photo-image]').forEach((image) => {
+            const container = image.closest('[data-photo-container]');
+            const loadingOverlay = container.querySelector('[data-photo-loading]');
+            const loadingMessage = loadingOverlay.querySelector('[data-photo-loading-message]');
+            const spinner = loadingOverlay.querySelector('.pid-card__photo-spinner');
+
+            const finishLoading = () => {
+                loadingOverlay.hidden = true;
+                container.setAttribute('aria-busy', 'false');
+            };
+
+            const showLoadError = () => {
+                spinner.hidden = true;
+                loadingMessage.textContent = 'Foto gagal dimuat.';
+                loadingOverlay.classList.add('is-error');
+                container.setAttribute('aria-busy', 'false');
+            };
+
+            image.addEventListener('load', finishLoading, { once: true });
+            image.addEventListener('error', showLoadError, { once: true });
+
+            if (image.complete) {
+                if (image.naturalWidth > 0) {
+                    finishLoading();
+                } else {
+                    showLoadError();
+                }
+            }
+        });
+
         document.querySelectorAll('[data-copy-npp]').forEach((button) => {
             button.addEventListener('click', async () => {
                 const originalLabel = 'Salin';

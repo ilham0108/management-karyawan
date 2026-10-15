@@ -1,58 +1,208 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Tambak Udang Waingapu
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplikasi Laravel untuk mengelola data pegawai dan jabatan, termasuk foto profil, QR code, dan manajemen akun pengguna.
 
-## About Laravel
+## Teknologi
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- PHP 8.3+
+- Laravel 13
+- Laravel Fortify dan Jetstream untuk autentikasi dan pengelolaan profil
+- MySQL
+- Node.js dan npm untuk membangun aset frontend
+- Gentelella untuk antarmuka aplikasi
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Menjalankan aplikasi secara lokal
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+Pastikan PHP, Composer, Node.js, dan npm sudah tersedia. Dari direktori project:
 
-## Learning Laravel
-
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```powershell
+composer install
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+if (-not (Select-String -Path .env -Pattern '^APP_KEY=.+')) { php artisan key:generate }
+npm ci
+npm run build
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Sesuaikan konfigurasi `.env` sebelum migrasi. Contoh konfigurasi database MySQL:
 
-## Contributing
+```dotenv
+APP_NAME="Sesuaikan Nama Aplikasi Anda"
+APP_URL=http://localhost:8000
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=tambak_udang_app
+DB_USERNAME=root
+DB_PASSWORD=
 
-## Code of Conduct
+INITIAL_USER_NAME="Administrator"
+INITIAL_USER_EMAIL=admin@example.com
+INITIAL_USER_PASSWORD=
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Isi `INITIAL_USER_PASSWORD` dengan password kuat milik Anda. Jangan menyimpan atau membagikan `.env`; file tersebut berisi rahasia dan kredensial.
 
-## Security Vulnerabilities
+Jalankan migrasi dan buat akun admin awal:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```powershell
+php artisan migrate --seed
+```
 
-## License
+Kemudian jalankan server:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+```powershell
+php artisan serve
+```
+
+Buka URL yang ditampilkan oleh Artisan, biasanya `http://127.0.0.1:8000`.
+
+### Akun administrator awal
+
+Seeder membaca `INITIAL_USER_NAME`, `INITIAL_USER_EMAIL`, dan `INITIAL_USER_PASSWORD` dari `.env`. Seeder membuat akun sebagai `admin` dan menandainya terverifikasi. Jika email sudah terdaftar, seeder akan mengangkat role akun tersebut menjadi `admin` tanpa mengganti password yang sudah ada.
+
+Untuk menjalankan seeder saja:
+
+```powershell
+php artisan db:seed --class=InitialUserSeeder
+```
+
+## Autentikasi
+
+Autentikasi menggunakan Laravel Fortify dengan guard `web` dan login memakai alamat email.
+
+| Method   | Fitur                                | URL                       |
+| -------- | ------------------------------------ | ------------------------- |
+| GET/POST | Login                                | `/login`                  |
+| POST     | Logout                               | `/logout`                 |
+| GET/POST | Registrasi                           | `/register`               |
+| GET/POST | Meminta tautan reset password        | `/forgot-password`        |
+| GET      | Form password baru dari tautan email | `/reset-password/{token}` |
+| POST     | Menyimpan password baru              | `/reset-password`         |
+| GET/POST | Tantangan autentikasi dua faktor     | `/two-factor-challenge`   |
+
+Registrasi publik aktif. Akun baru mendapat role `user` secara default dan dapat login setelah mendaftar. Konfigurasi email harus disiapkan agar tautan reset password dapat dikirim. Pada konfigurasi `MAIL_MAILER=log`, email ditulis ke log aplikasi, bukan dikirim ke inbox.
+
+Two-factor authentication dan passkeys diaktifkan melalui konfigurasi Fortify. Passkeys memerlukan browser/perangkat yang mendukung WebAuthn dan umumnya harus digunakan melalui HTTPS di lingkungan produksi. Fitur verifikasi email Fortify saat ini tidak diaktifkan.
+
+Login dibatasi untuk mencegah percobaan password berulang. Pengaturan fitur, guard, broker password, serta rate limiter berada di `config/fortify.php`.
+
+## Role dan hak akses
+
+Aplikasi memiliki dua role:
+
+| Role    | Hak akses                                                                                                      |
+| ------- | -------------------------------------------------------------------------------------------------------------- |
+| `admin` | Semua halaman pegawai dan jabatan yang tersedia, serta halaman dan aksi manajemen user.                        |
+| `user`  | Halaman pegawai dan jabatan setelah login; tidak dapat membuka atau mengubah user lain melalui manajemen user. |
+
+Dashboard, halaman pegawai, dan jabatan berada di balik middleware autentikasi. Route manajemen user juga memakai middleware `CekAuth:admin`; pembatasan ini berlaku di server, bukan hanya dengan menyembunyikan tautan navigasi.
+
+Admin dapat membuka **Sistem → User** untuk menambah, mengubah nama/email/role, mengganti password, dan menghapus akun. Password baru minimal delapan karakter. Saat mengedit user, biarkan password kosong jika tidak ingin menggantinya. Email harus unik dan role hanya boleh `admin` atau `user`.
+
+Akun admin yang sedang login tidak dapat menghapus dirinya sendiri atau mengubah role dirinya menjadi `user`. Untuk memberi role admin kepada akun yang sudah ada, ubah role dari halaman manajemen user menggunakan admin lain, atau jalankan seeder admin awal dengan email akun tersebut.
+
+## Manajemen jabatan
+
+Buka **Data Karyawan → Master Jabatan** (`/jabatan`).
+
+- **Tambah:** pilih **Tambah Jabatan**, masukkan nama jabatan, lalu simpan.
+- **Edit:** pilih **Edit** pada baris jabatan, ubah namanya, lalu simpan.
+- **Hapus:** pilih **Hapus** dan konfirmasi. Jabatan yang masih dipakai pegawai tidak dapat dihapus; pindahkan pegawai ke jabatan lain terlebih dahulu.
+
+Nama jabatan wajib diisi dan panjangnya maksimal 255 karakter.
+
+## Manajemen pegawai
+
+Buka **Data Karyawan → Data Karyawan** (`/pegawai`).
+
+- **Tambah:** pilih **Tambah Pegawai**, isi nama, NPP, jabatan, status, dan opsional foto.
+- **Edit:** pilih **Edit** pada baris pegawai. Foto yang sudah ada tetap dipakai bila tidak memilih foto pengganti.
+- **Hapus:** pilih **Hapus** dan konfirmasi. Data foto dan QR milik pegawai ikut dibersihkan.
+- Gunakan filter jabatan/status dan pencarian tabel untuk menemukan pegawai.
+- **Export Excel (CSV)** mengunduh `pegawai.csv` dengan filter/pencarian yang sedang diterapkan.
+- Kolom **Profile Photo** dan **QR Code** pada CSV berisi URL jika media tersedia; jika tidak tersedia, nilainya `Tidak tersedia`.
+- **QR Code** membuka QR pegawai dan menyediakan unduhan. QR lama yang tidak tersedia akan dibuat ulang saat QR diminta.
+
+Nama, NPP, dan jabatan wajib diisi. Status yang tersedia adalah `aktif` dan `tidak aktif`. Foto menerima JPG/JPEG, PNG, atau WebP dengan batas validasi aplikasi 5.048 KB (sekitar 5 MB). Mengubah nama, NPP, jabatan, atau status membuat QR lama dibuat ulang ketika QR diminta berikutnya.
+
+### Foto pegawai pada server
+
+Foto disimpan pada disk `public` Laravel dan disajikan melalui route foto pegawai. Jika Nginx membalas `413 Request Entity Too Large`, request ditolak Nginx sebelum mencapai Laravel. Sesuaikan `client_max_body_size` pada blok `server` virtual host, misalnya:
+
+```nginx
+server {
+    client_max_body_size 10m;
+    # Konfigurasi virtual host lainnya...
+}
+```
+
+Periksa juga konfigurasi PHP-FPM untuk domain tersebut. `upload_max_filesize` harus lebih besar dari batas foto aplikasi dan `post_max_size` harus lebih besar dari ukuran total request. Setelah mengubah konfigurasi, uji Nginx dengan `sudo nginx -t`, lalu reload Nginx dan restart PHP-FPM jika konfigurasinya berubah.
+
+## Halaman profil publik dan QR
+
+URL Pegawai memakai token ID terenkripsi, bukan ID database dalam bentuk polos. Contohnya, route profil berbentuk `/pegawai/{token-terenkripsi}` dan foto `/pegawai/{token-terenkripsi}/foto`. Token yang tidak valid atau ID polos akan menghasilkan 404.
+
+Halaman profil dan foto bersifat publik agar dapat dibuka dari QR tanpa login. Enkripsi ID menyamarkan ID database pada URL, tetapi bukan pengganti kontrol akses: siapa pun yang memiliki tautan masih dapat melihat nama, jabatan, NPP, status, dan foto profil.
+
+QR mengarah ke halaman profil publik pegawai. Pertahankan nilai `APP_KEY` yang sama setelah aplikasi digunakan. Jika kunci berubah, datatable dan CSV menandai QR lama sebagai tidak tersedia; meminta QR kembali akan membuat QR baru. QR yang sudah dicetak atau dibagikan tidak dapat diperbarui otomatis dan perlu diganti dengan QR baru.
+
+## Route aplikasi utama
+
+| Method     | URL                              | Keterangan                            |
+| ---------- | -------------------------------- | ------------------------------------- |
+| GET        | `/dashboard`                     | Dashboard                             |
+| GET/POST   | `/jabatan`                       | Daftar jabatan dan tambah jabatan     |
+| PUT/DELETE | `/jabatan/{id}`                  | Edit atau hapus jabatan               |
+| GET/POST   | `/pegawai`                       | Daftar pegawai dan tambah pegawai     |
+| GET        | `/pegawai/data`                  | Data tabel pegawai                    |
+| GET        | `/pegawai/export`                | Ekspor CSV pegawai                    |
+| PUT/DELETE | `/pegawai/{token-terenkripsi}`                  | Edit atau hapus pegawai               |
+| GET        | `/pegawai/{token-terenkripsi}`                  | Profil publik pegawai                 |
+| GET        | `/pegawai/{token-terenkripsi}/foto`             | Foto publik pegawai                   |
+| GET        | `/pegawai/{token-terenkripsi}/qr-code.png`      | Menampilkan QR pegawai                |
+| GET        | `/pegawai/{token-terenkripsi}/qr-code/download` | Mengunduh QR pegawai                  |
+| GET/POST   | `/user`                          | Daftar dan tambah user (khusus admin) |
+| PUT/DELETE | `/user/{id}`                     | Edit atau hapus user (khusus admin)   |
+
+Daftar route dapat diperiksa dengan:
+
+```powershell
+php artisan route:list --except-vendor
+```
+
+## Pengembangan dan pengujian
+
+Build aset frontend:
+
+```powershell
+npm run dev
+```
+
+Untuk build produksi:
+
+```powershell
+npm run build
+```
+
+Sebelum deployment, siapkan `.env` produksi dengan `APP_ENV=production`, `APP_DEBUG=false`, URL HTTPS, database dan mail yang benar, serta password admin yang kuat. Jangan deploy `.env` ke repository. Build aset dan jalankan migrasi setelah konfigurasi server siap:
+
+```powershell
+npm ci
+npm run build
+php artisan migrate --force
+```
+
+Seeder admin dijalankan terpisah hanya jika memang diperlukan:
+
+```powershell
+php artisan db:seed --class=InitialUserSeeder --force
+```
+
+Pastikan direktori `storage` dan `bootstrap/cache` dapat ditulis oleh proses PHP. Pada lingkungan produksi, simpan foto dan backup database pada media penyimpanan yang dicadangkan secara teratur.
+
+Jalankan test:
+
+```powershell
+php artisan test
+```

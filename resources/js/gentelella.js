@@ -32,6 +32,30 @@ function clearFormErrors(form) {
     form.querySelectorAll('[data-ajax-error]').forEach((error) => error.remove());
 }
 
+function copyTextToClipboard(text) {
+    const textArea = document.createElement('textarea');
+
+    textArea.value = text;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    document.body.append(textArea);
+    textArea.select();
+    textArea.setSelectionRange(0, textArea.value.length);
+
+    let copied = false;
+
+    try {
+        copied = document.execCommand('copy');
+    } catch {
+        copied = false;
+    } finally {
+        textArea.remove();
+    }
+
+    return copied;
+}
+
 function showFormErrors(form, errors) {
     Object.entries(errors).forEach(([name, messages]) => {
         const input = form.elements.namedItem(name);
@@ -83,7 +107,7 @@ if (addPegawaiButton && pegawaiFormTemplate) {
             form.querySelector('[data-profile-photo-name]').textContent =
                 'Pilih foto baru jika ingin mengganti foto saat ini';
             form.querySelector('[data-profile-photo-help]').textContent =
-                'Kosongkan jika foto saat ini tidak ingin diganti. Format JPG, PNG, atau WebP; maksimal 2 MB.';
+                'Kosongkan jika foto saat ini tidak ingin diganti. Format JPG, PNG, atau WebP; maksimal 5 MB.';
         }
 
         showModal({
@@ -447,16 +471,35 @@ document.addEventListener('click', (event) => {
     }
 
     const body = document.createElement('div');
+    const loadingOverlay = document.createElement('div');
+    const spinner = document.createElement('span');
+    const loadingMessage = document.createElement('span');
     const image = document.createElement('img');
     const employeeName = photoButton.dataset.pegawaiName;
 
-    image.src = photoButton.dataset.photoUrl;
+    body.className = 'pegawai-photo-container';
+    body.setAttribute('aria-busy', 'true');
+    loadingOverlay.className = 'pegawai-photo-loading';
+    loadingOverlay.setAttribute('role', 'status');
+    loadingOverlay.setAttribute('aria-live', 'polite');
+    spinner.className = 'pegawai-photo-spinner';
+    spinner.setAttribute('aria-hidden', 'true');
+    loadingMessage.textContent = 'Memuat foto...';
+    loadingOverlay.append(spinner, loadingMessage);
     image.alt = `Foto profil ${employeeName}`;
     image.className = 'pegawai-profile-photo-preview';
+    image.addEventListener('load', () => {
+        loadingOverlay.hidden = true;
+        body.setAttribute('aria-busy', 'false');
+    }, { once: true });
     image.addEventListener('error', () => {
+        spinner.hidden = true;
+        loadingMessage.textContent = 'Foto gagal dimuat.';
+        loadingOverlay.classList.add('is-error');
+        body.setAttribute('aria-busy', 'false');
         showToast('Foto profil pegawai gagal dimuat.', { variant: 'error' });
     }, { once: true });
-    body.append(image);
+    body.append(loadingOverlay, image);
 
     showModal({
         title: `Foto Profil: ${employeeName}`,
@@ -466,6 +509,8 @@ document.addEventListener('click', (event) => {
             { label: 'Tutup', variant: 'outline' },
         ],
     });
+
+    image.src = photoButton.dataset.photoUrl;
 });
 
 document.addEventListener('click', (event) => {
@@ -484,13 +529,27 @@ document.addEventListener('click', (event) => {
     const body = document.createElement('div');
     const description = document.createElement('p');
     const image = document.createElement('img');
+    const urlLabel = document.createElement('label');
+    const urlInput = document.createElement('input');
 
+    body.className = 'pegawai-qr-modal';
     description.textContent = `${employeeName} (${employeeNpp})`;
+    description.className = 'pegawai-qr-modal__description';
     image.src = qrUrl;
     image.alt = `QR Code untuk ${employeeName}`;
+    image.className = 'pegawai-qr-modal__image';
     image.width = 320;
     image.height = 320;
-    image.style.maxWidth = '100%';
+    urlLabel.className = 'form-label pegawai-qr-modal__url-label';
+    urlLabel.htmlFor = 'pegawai-qr-url';
+    urlLabel.textContent = 'URL QR Code';
+    urlInput.id = 'pegawai-qr-url';
+    urlInput.className = 'form-control pegawai-qr-modal__url';
+    urlInput.type = 'text';
+    urlInput.value = new URL(qrUrl, window.location.href).href;
+    urlInput.readOnly = true;
+    urlInput.setAttribute('aria-label', 'URL QR Code pegawai');
+    urlInput.addEventListener('focus', () => urlInput.select());
     image.addEventListener('load', () => {
         reloadPegawaiTable().catch((error) => {
             showToast(
@@ -502,7 +561,7 @@ document.addEventListener('click', (event) => {
     image.addEventListener('error', () => {
         showToast('QR Code pegawai gagal dimuat.', { variant: 'error' });
     }, { once: true });
-    body.append(description, image);
+    body.append(description, image, urlLabel, urlInput);
 
     showModal({
         title: 'QR Code Pegawai',
@@ -513,15 +572,36 @@ document.addEventListener('click', (event) => {
                 label: 'Salin URL QR',
                 variant: 'outline',
                 action: () => {
+                    const copyUrl = urlInput.value;
+                    const copyWithLegacyApi = () => {
+                        if (copyTextToClipboard(copyUrl)) {
+                            showToast('URL QR Code berhasil disalin.', { variant: 'success' });
+
+                            return true;
+                        }
+
+                        urlInput.focus();
+                        urlInput.select();
+                        showToast('URL QR Code gagal disalin otomatis. Salin URL yang sudah dipilih secara manual.', {
+                            variant: 'error',
+                        });
+
+                        return false;
+                    };
+
                     if (!navigator.clipboard?.writeText) {
-                        showToast('Browser tidak mendukung penyalinan otomatis.', { variant: 'error' });
+                        copyWithLegacyApi();
 
                         return false;
                     }
 
-                    navigator.clipboard.writeText(new URL(qrUrl, window.location.href).href)
-                        .then(() => showToast('URL QR Code berhasil disalin.', { variant: 'success' }))
-                        .catch(() => showToast('URL QR Code gagal disalin.', { variant: 'error' }));
+                    try {
+                        navigator.clipboard.writeText(copyUrl)
+                            .then(() => showToast('URL QR Code berhasil disalin.', { variant: 'success' }))
+                            .catch(() => copyWithLegacyApi());
+                    } catch {
+                        copyWithLegacyApi();
+                    }
 
                     return false;
                 },
@@ -543,216 +623,3 @@ document.addEventListener('click', (event) => {
         ],
     });
 });
-
-const qrScanner = document.querySelector('[data-qr-scanner]');
-
-if (qrScanner) {
-    const video = qrScanner.querySelector('[data-scanner-video]');
-    const status = qrScanner.querySelector('[data-scanner-status]');
-    const statusText = qrScanner.querySelector('[data-scanner-status-text]');
-    const loadingOverlay = qrScanner.querySelector('[data-scanner-loading]');
-    const startButton = qrScanner.querySelector('[data-scanner-start]');
-    const stopButton = qrScanner.querySelector('[data-scanner-stop]');
-    const scanAgainButton = qrScanner.querySelector('[data-scanner-again]');
-    const resultSection = qrScanner.querySelector('[data-scanner-result]');
-    const resultPhoto = qrScanner.querySelector('[data-result-photo]');
-    const resultPhotoEmpty = qrScanner.querySelector('[data-result-photo-empty]');
-    const activeMessage = qrScanner.querySelector('[data-result-active-message]');
-    let codeReader = null;
-    let scannerControls = null;
-    let cameraStream = null;
-    let lastScannedPayload = null;
-    let isLookingUp = false;
-
-    const setScannerStatus = (message, isError = false, isLoading = false) => {
-        statusText.textContent = message;
-        status.classList.toggle('is-error', isError);
-        status.setAttribute('aria-busy', String(isLoading));
-        loadingOverlay.hidden = !isLoading;
-        loadingOverlay.setAttribute('aria-busy', String(isLoading));
-    };
-
-    const stopCamera = (controls = scannerControls) => {
-        controls?.stop();
-        scannerControls = null;
-        cameraStream?.getTracks().forEach((track) => track.stop());
-        cameraStream = null;
-        video.srcObject = null;
-        startButton.disabled = false;
-        stopButton.disabled = true;
-    };
-
-    const waitForVideoFrame = () => new Promise((resolve, reject) => {
-        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
-            resolve();
-
-            return;
-        }
-
-        let timeout;
-        const cleanup = () => {
-            window.clearTimeout(timeout);
-            video.removeEventListener('loadeddata', checkVideoFrame);
-            video.removeEventListener('resize', checkVideoFrame);
-            video.removeEventListener('error', handleVideoError);
-        };
-        const checkVideoFrame = () => {
-            if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth > 0) {
-                cleanup();
-                resolve();
-            }
-        };
-        const handleVideoError = () => {
-            cleanup();
-            reject(new Error('Browser gagal menerima gambar dari kamera.'));
-        };
-
-        video.addEventListener('loadeddata', checkVideoFrame);
-        video.addEventListener('resize', checkVideoFrame);
-        video.addEventListener('error', handleVideoError);
-        timeout = window.setTimeout(() => {
-            cleanup();
-            reject(new Error('Kamera aktif, tetapi belum mengirim gambar. Periksa kamera yang dipilih dan izin browser.'));
-        }, 10000);
-        checkVideoFrame();
-    });
-
-    resultPhoto.addEventListener('error', () => {
-        resultPhoto.hidden = true;
-        resultPhotoEmpty.hidden = false;
-    });
-
-    const showPegawai = (pegawai) => {
-        qrScanner.querySelector('[data-result-name]').textContent = pegawai.nama;
-        qrScanner.querySelector('[data-result-npp]').textContent = pegawai.npp;
-        qrScanner.querySelector('[data-result-jabatan]').textContent = pegawai.jabatan || '-';
-        qrScanner.querySelector('[data-result-status]').textContent = pegawai.status;
-        resultPhoto.hidden = !pegawai.profile_photo_url;
-        resultPhotoEmpty.hidden = Boolean(pegawai.profile_photo_url);
-        resultPhoto.alt = `Foto profil ${pegawai.nama}`;
-        activeMessage.hidden = pegawai.status !== 'aktif';
-
-        if (pegawai.profile_photo_url) {
-            resultPhoto.src = new URL(pegawai.profile_photo_url, window.location.href).href;
-        } else {
-            resultPhoto.removeAttribute('src');
-        }
-
-        resultSection.hidden = false;
-        scanAgainButton.disabled = false;
-    };
-
-    const lookupPayload = async (payload) => {
-        isLookingUp = true;
-        lastScannedPayload = payload;
-        setScannerStatus('QR terbaca. Mengambil data pegawai terbaru...', false, true);
-
-        try {
-            const response = await fetch(qrScanner.dataset.lookupUrl, {
-                method: 'POST',
-                headers: {
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': qrScanner.dataset.csrfToken,
-                    'X-Requested-With': 'XMLHttpRequest',
-                },
-                body: JSON.stringify({ payload }),
-                credentials: 'same-origin',
-            });
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.message || 'Data pegawai tidak dapat ditemukan.');
-            }
-
-            showPegawai(result.data);
-            setScannerStatus('Data pegawai berhasil diperbarui.');
-        } catch (error) {
-            setScannerStatus(
-                error instanceof Error ? error.message : 'Gagal mengambil data pegawai.',
-                true,
-            );
-        } finally {
-            isLookingUp = false;
-        }
-    };
-
-    startButton.addEventListener('click', async () => {
-        if (!navigator.mediaDevices?.getUserMedia) {
-            setScannerStatus('Kamera memerlukan koneksi HTTPS atau localhost.', true);
-
-            return;
-        }
-
-        startButton.disabled = true;
-        setScannerStatus('Menghubungkan ke kamera...');
-
-        try {
-            if (!codeReader) {
-                const { BrowserQRCodeReader } = await import('@zxing/browser');
-                codeReader = new BrowserQRCodeReader();
-            }
-
-            cameraStream = await navigator.mediaDevices.getUserMedia({
-                audio: false,
-                video: { facingMode: { ideal: 'environment' } },
-            });
-            video.srcObject = cameraStream;
-            await video.play();
-            await waitForVideoFrame();
-
-            let scannerError = null;
-            const controls = await codeReader.decodeFromVideoElement(video, (result, error, decodeControls) => {
-                if (result) {
-                    const payload = result.getText();
-
-                    if (!isLookingUp && payload !== lastScannedPayload) {
-                        lookupPayload(payload);
-                    }
-
-                    return;
-                }
-
-                const errorKind = error?.getKind?.() || error?.name;
-
-                if (error && !['NotFoundException', 'ChecksumException', 'FormatException'].includes(errorKind)) {
-                    scannerError = error;
-                    stopCamera(decodeControls);
-                    setScannerStatus(`Pemindai QR gagal membaca gambar: ${error.message || errorKind}`, true);
-                } else if (!lastScannedPayload) {
-                    setScannerStatus('Arahkan QR Code ke dalam bingkai kamera.');
-                }
-            });
-
-            if (scannerError) {
-                return;
-            }
-
-            scannerControls = controls;
-            stopButton.disabled = false;
-            setScannerStatus('Kamera aktif. Arahkan QR Code ke dalam bingkai.');
-        } catch (error) {
-            stopCamera();
-            if (error instanceof Error && error.name === 'NotAllowedError') {
-                setScannerStatus('Izin kamera ditolak. Izinkan akses kamera lalu coba lagi.', true);
-            } else {
-                const detail = error instanceof Error ? ` ${error.message}` : '';
-                setScannerStatus(`Kamera tidak dapat dibuka.${detail}`, true);
-            }
-        }
-    });
-
-    stopButton.addEventListener('click', () => {
-        stopCamera();
-        setScannerStatus('Kamera dimatikan.');
-    });
-
-    scanAgainButton.addEventListener('click', () => {
-        lastScannedPayload = null;
-        resultSection.hidden = true;
-        scanAgainButton.disabled = true;
-        setScannerStatus('Arahkan QR Code pegawai berikutnya ke dalam bingkai.');
-    });
-
-    window.addEventListener('pagehide', stopCamera);
-}

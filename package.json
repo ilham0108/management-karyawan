@@ -15,13 +15,13 @@
         "laravel-vite-plugin": "^3.1",
         "postcss": "^8.4.32",
         "tailwindcss": "^3.4.0",
-        "vite": "^8.0.0"
+        "vite": "^8.0.0",
+        "vite-plugin-pwa": "^2.0.0"
     },
     "optionalDependencies": {
         "@laravel/multiplex": "^0.4.1"
     },
     "dependencies": {
-        "@zxing/browser": "^0.2.1",
         "gentelella": "^4.2.0",
         "sass": "^1.105.1"
     }

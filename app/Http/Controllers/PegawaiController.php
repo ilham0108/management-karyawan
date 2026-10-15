@@ -85,14 +85,18 @@ class PegawaiController extends Controller
 
     private function ensureQrCode(Pegawai $pegawai): string
     {
+        $disk = Storage::disk('local');
+        $pathPrefix = $this->currentQrCodePathPrefix($pegawai);
+
+        if (
+            $this->hasCurrentQrCode($pegawai)
+        ) {
+            return $pegawai->qr_code;
+        }
+
         $content = route('pegawai.show', $pegawai);
 
-        $path = sprintf(
-            'pegawai/qr-codes/%s-%s.png',
-            $pegawai->getKey(),
-            hash('sha256', $content),
-        );
-        $disk = Storage::disk('local');
+        $path = $pathPrefix.hash('sha256', $content).'.png';
 
         if (! $disk->exists($path)) {
             $png = (new Writer(new GDLibRenderer(320, 2)))->writeString($content);
@@ -103,10 +107,33 @@ class PegawaiController extends Controller
         }
 
         if ($pegawai->qr_code !== $path) {
+            $oldPath = $pegawai->qr_code;
             $pegawai->forceFill(['qr_code' => $path])->save();
+
+            if ($oldPath !== null) {
+                $this->deleteStoredFile('local', $oldPath);
+            }
         }
 
         return $path;
+    }
+
+    private function currentQrCodePathPrefix(Pegawai $pegawai): string
+    {
+        $keyFingerprint = hash_hmac(
+            'sha256',
+            'pegawai-qr-code-key-version',
+            (string) config('app.key'),
+        );
+
+        return sprintf('pegawai/qr-codes/v3-%s-%s-', $keyFingerprint, $pegawai->getKey());
+    }
+
+    private function hasCurrentQrCode(Pegawai $pegawai): bool
+    {
+        return $pegawai->qr_code !== null
+            && str_starts_with($pegawai->qr_code, $this->currentQrCodePathPrefix($pegawai))
+            && Storage::disk('local')->exists($pegawai->qr_code);
     }
 
     public function data(Request $request): JsonResponse
@@ -159,7 +186,9 @@ class PegawaiController extends Controller
                 : '<button type="button" class="btn btn-outline btn-sm" data-pegawai-profile-photo '.
                 'data-photo-url="'.e(route('pegawai.profile-photo', $pegawai, false)).'" '.
                 'data-pegawai-name="'.e($pegawai->nama).'">Lihat Foto</button>',
-            $pegawai->qr_code === null ? 'Belum dibuat' : 'Tersedia',
+            $pegawai->qr_code === null
+                ? 'Belum dibuat'
+                : ($this->hasCurrentQrCode($pegawai) ? 'Tersedia' : 'Tidak tersedia'),
             '<button type="button" class="btn btn-outline btn-sm" data-pegawai-qr '.
                 'data-pegawai-qr-url="'.e(route('pegawai.qr', $pegawai, false)).'" '.
                 'data-pegawai-qr-download-url="'.e(route('pegawai.qr.download', $pegawai, false)).'" '.
@@ -226,13 +255,21 @@ class PegawaiController extends Controller
             fputcsv($output, ['Name', 'Jabatan', 'NPP', 'Status', 'Profile Photo', 'QR Code']);
 
             foreach ($query->lazy(500) as $pegawai) {
+                $profilePhotoUrl = $pegawai->profile_photo !== null
+                    && Storage::disk('public')->exists($pegawai->profile_photo)
+                    ? route('pegawai.profile-photo', $pegawai)
+                    : 'Tidak tersedia';
+                $qrCodeUrl = $this->hasCurrentQrCode($pegawai)
+                    ? route('pegawai.qr', $pegawai)
+                    : 'Tidak tersedia';
+
                 fputcsv($output, [
                     $this->spreadsheetSafeValue($pegawai->nama),
                     $this->spreadsheetSafeValue($pegawai->jabatan?->nama),
                     $this->spreadsheetSafeValue($pegawai->npp),
                     $this->spreadsheetSafeValue($pegawai->status),
-                    $this->spreadsheetSafeValue($pegawai->profile_photo === null ? 'Belum diunggah' : 'Tersedia'),
-                    $this->spreadsheetSafeValue($pegawai->qr_code === null ? 'Belum dibuat' : 'Tersedia'),
+                    $this->spreadsheetSafeValue($profilePhotoUrl),
+                    $this->spreadsheetSafeValue($qrCodeUrl),
                 ]);
             }
 

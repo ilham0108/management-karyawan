@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Jabatan;
 use App\Models\Pegawai;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -49,12 +51,57 @@ class PegawaiControllerTest extends TestCase
             ->assertSee('Operator')
             ->assertSee('AKTIF SEBAGAI PEGAWAI ISF WAINGAPU')
             ->assertSee('data-copy-npp="NPP-001"', false)
-            ->assertSee('Salin')
-            ->assertSee(route('pegawai.profile-photo', $pegawai));
+            ->assertSee('Salin');
 
         $this->get(route('pegawai.profile-photo', $pegawai))
             ->assertOk()
             ->assertHeader('content-type', 'image/png');
+    }
+
+    public function test_public_profile_displays_loading_overlay_while_profile_photo_loads(): void
+    {
+        Storage::fake('public');
+        $jabatan = Jabatan::create(['nama' => 'Operator']);
+        $photoPath = UploadedFile::fake()->image('profile-photo.png')
+            ->store('pegawai/profile-photos', 'public');
+        $pegawai = Pegawai::create([
+            'nama' => 'Andi Saputra',
+            'jabatan_id' => $jabatan->id,
+            'npp' => 'NPP-003',
+            'status' => 'aktif',
+            'profile_photo' => $photoPath,
+        ]);
+
+        $this->get(route('pegawai.show', $pegawai))
+            ->assertOk()
+            ->assertSee('data-photo-container', false)
+            ->assertSee('data-photo-loading', false)
+            ->assertSee('Memuat foto...')
+            ->assertSee('data-profile-photo-image', false)
+            ->assertSee('pid-card__photo-spinner', false);
+    }
+
+    public function test_public_profile_uses_an_encrypted_id_in_the_profile_photo_url(): void
+    {
+        Storage::fake('public');
+        $jabatan = Jabatan::create(['nama' => 'Operator']);
+        $photoPath = UploadedFile::fake()->image('profile-photo.png')
+            ->store('pegawai/profile-photos', 'public');
+        $pegawai = Pegawai::create([
+            'nama' => 'Andi Saputra',
+            'jabatan_id' => $jabatan->id,
+            'npp' => 'NPP-003',
+            'status' => 'aktif',
+            'profile_photo' => $photoPath,
+        ]);
+
+        $response = $this->get(route('pegawai.show', $pegawai))->assertOk();
+
+        $this->assertMatchesRegularExpression(
+            '#src="https?://[^"]+/pegawai/[A-Za-z0-9_-]+/foto"#',
+            $response->getContent(),
+        );
+        $this->assertStringNotContainsString('/'.$pegawai->getKey().'/foto', $response->getContent());
     }
 
     public function test_public_pegawai_profile_displays_inactive_status_and_photo_fallback(): void
@@ -149,6 +196,7 @@ class PegawaiControllerTest extends TestCase
     {
         Storage::fake('public');
         Storage::fake('local');
+        $this->actingAs(User::factory()->create());
         $jabatan = Jabatan::create(['nama' => 'Operator']);
         $newJabatan = Jabatan::create(['nama' => 'Supervisor']);
         $pegawai = Pegawai::create([
@@ -271,11 +319,28 @@ class PegawaiControllerTest extends TestCase
         ]);
         Storage::disk('public')->put($pegawai->profile_photo, 'profile-photo-content');
 
-        $response = $this->get(route('pegawai.profile-photo', $pegawai));
+        $photoUrl = route('pegawai.profile-photo', $pegawai);
+        $this->assertStringNotContainsString('/'.$pegawai->getKey().'/foto', $photoUrl);
+
+        $response = $this->get($photoUrl);
 
         $response->assertOk()
             ->assertHeader('content-type', 'image/png')
             ->assertStreamedContent('profile-photo-content');
+    }
+
+    public function test_profile_photo_endpoint_rejects_a_plain_pegawai_id_in_the_url(): void
+    {
+        $jabatan = Jabatan::create(['nama' => 'Operator']);
+        $pegawai = Pegawai::create([
+            'nama' => 'Andi Saputra',
+            'jabatan_id' => $jabatan->id,
+            'npp' => 'NPP-007',
+            'status' => 'aktif',
+        ]);
+
+        $this->get('/pegawai/'.$pegawai->getKey().'/foto')
+            ->assertNotFound();
     }
 
     public function test_profile_photo_endpoint_returns_not_found_when_the_photo_file_is_missing(): void
@@ -326,6 +391,8 @@ class PegawaiControllerTest extends TestCase
     public function test_data_endpoint_returns_filtered_server_side_table_rows(): void
     {
         Storage::fake('public');
+        Storage::fake('local');
+        $this->actingAs(User::factory()->create());
         $jabatan = Jabatan::create(['nama' => 'Operator']);
         $otherJabatan = Jabatan::create(['nama' => 'Supervisor']);
 
@@ -335,9 +402,10 @@ class PegawaiControllerTest extends TestCase
             'npp' => 'NPP-001',
             'status' => 'aktif',
             'profile_photo' => 'pegawai/profile-photos/andi.png',
-            'qr_code' => 'QR-001',
         ]);
         Storage::disk('public')->put($pegawai->profile_photo, 'profile-photo-content');
+        $this->get(route('pegawai.qr', $pegawai))->assertOk();
+        $pegawai->refresh();
         Pegawai::create([
             'nama' => 'Andi Tidak Aktif',
             'jabatan_id' => $jabatan->id,
@@ -371,22 +439,22 @@ class PegawaiControllerTest extends TestCase
             ->assertJsonPath('data.0.2', 'Operator')
             ->assertJsonPath('data.0.3', 'NPP-001')
             ->assertJsonPath('data.0.4', 'aktif')
-            ->assertJsonPath(
-                'data.0.5',
-                '<button type="button" class="btn btn-outline btn-sm" data-pegawai-profile-photo data-photo-url="'.
-                    e(route('pegawai.profile-photo', $pegawai, false)).
-                    '" data-pegawai-name="&lt;strong&gt;Andi&lt;/strong&gt;">Lihat Foto</button>',
-            )
             ->assertJsonPath('data.0.6', 'Tersedia');
+
+        $photoCell = $response->json('data.0.5');
+        $this->assertStringContainsString('data-photo-url="/pegawai/', $photoCell);
+        $this->assertStringContainsString('data-pegawai-name="&lt;strong&gt;Andi&lt;/strong&gt;"', $photoCell);
+        $this->assertStringNotContainsString('/'.$pegawai->getKey().'/foto', $photoCell);
 
         $actionCell = $response->json('data.0.7');
         $this->assertStringContainsString('data-pegawai-qr', $actionCell);
-        $this->assertStringContainsString(route('pegawai.qr', $pegawai, false), $actionCell);
-        $this->assertStringContainsString(route('pegawai.qr.download', $pegawai, false), $actionCell);
+        $this->assertStringContainsString('data-pegawai-qr-url="/pegawai/', $actionCell);
+        $this->assertStringContainsString('data-pegawai-qr-download-url="/pegawai/', $actionCell);
         $this->assertStringContainsString('data-edit-pegawai', $actionCell);
-        $this->assertStringContainsString(route('pegawai.update', $pegawai, false), $actionCell);
+        $this->assertStringContainsString('data-update-url="/pegawai/', $actionCell);
         $this->assertStringContainsString('data-delete-pegawai', $actionCell);
-        $this->assertStringContainsString(route('pegawai.destroy', $pegawai, false), $actionCell);
+        $this->assertStringContainsString('data-delete-url="/pegawai/', $actionCell);
+        $this->assertStringNotContainsString('/'.$pegawai->getKey().'/', $actionCell);
         $this->assertStringContainsString(
             'data-pegawai-name="&lt;strong&gt;Andi&lt;/strong&gt;"',
             $actionCell,
@@ -396,6 +464,7 @@ class PegawaiControllerTest extends TestCase
     public function test_qr_endpoint_generates_and_stores_a_png_for_the_requested_pegawai(): void
     {
         Storage::fake('local');
+        $this->actingAs(User::factory()->create());
         $jabatan = Jabatan::create(['nama' => 'Operator']);
         $pegawai = Pegawai::create([
             'nama' => 'Andi Saputra',
@@ -407,16 +476,16 @@ class PegawaiControllerTest extends TestCase
         $response = $this->get(route('pegawai.qr', $pegawai));
 
         $response->assertOk()
-            ->assertHeader('Content-Type', 'image/png')
-            ->assertHeader('Cache-Control', 'private, no-store');
+            ->assertHeader('Content-Type', 'image/png');
+        $this->assertStringContainsString('private', $response->headers->get('Cache-Control'));
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
         $this->assertStringStartsWith("\x89PNG\r\n\x1a\n", $response->getContent());
 
         $storedPath = $pegawai->fresh()->qr_code;
         $this->assertNotNull($storedPath);
-        $this->assertSame(
-            'pegawai/qr-codes/'.$pegawai->id.'-'.hash('sha256', route('pegawai.show', $pegawai)).'.png',
-            $storedPath,
-        );
+        $this->assertStringStartsWith('pegawai/qr-codes/v3-', $storedPath);
+        $this->assertStringContainsString('-'.$pegawai->id.'-', $storedPath);
+        $this->assertStringEndsWith('.png', $storedPath);
         Storage::disk('local')->assertExists($storedPath);
         $this->assertDatabaseHas('pegawais', [
             'id' => $pegawai->id,
@@ -424,9 +493,72 @@ class PegawaiControllerTest extends TestCase
         ]);
     }
 
+    public function test_qr_endpoint_migrates_existing_qr_pngs_with_plain_id_urls(): void
+    {
+        Storage::fake('local');
+        $this->actingAs(User::factory()->create());
+        $jabatan = Jabatan::create(['nama' => 'Operator']);
+        $pegawai = Pegawai::create([
+            'nama' => 'Andi Saputra',
+            'jabatan_id' => $jabatan->id,
+            'npp' => 'NPP-001',
+            'status' => 'aktif',
+        ]);
+        $legacyPath = 'pegawai/qr-codes/'.$pegawai->getKey().'-'.str_repeat('a', 64).'.png';
+        $pegawai->forceFill(['qr_code' => $legacyPath])->save();
+        Storage::disk('local')->put($legacyPath, 'legacy-qr-content');
+
+        $this->get(route('pegawai.qr', $pegawai))
+            ->assertOk();
+
+        $newPath = $pegawai->fresh()->qr_code;
+        $this->assertNotNull($newPath);
+        $this->assertStringStartsWith('pegawai/qr-codes/v3-', $newPath);
+        $this->assertStringContainsString('-'.$pegawai->id.'-', $newPath);
+        Storage::disk('local')->assertMissing($legacyPath);
+        Storage::disk('local')->assertExists($newPath);
+    }
+
+    public function test_qr_status_becomes_unavailable_after_app_key_changes_and_regenerates_on_request(): void
+    {
+        Storage::fake('local');
+        $this->actingAs(User::factory()->create());
+        $jabatan = Jabatan::create(['nama' => 'Operator']);
+        $pegawai = Pegawai::create([
+            'nama' => 'Andi Saputra',
+            'jabatan_id' => $jabatan->id,
+            'npp' => 'NPP-001',
+            'status' => 'aktif',
+        ]);
+
+        $this->get(route('pegawai.qr', $pegawai))->assertOk();
+        $oldPath = $pegawai->fresh()->qr_code;
+        $newKey = 'base64:'.base64_encode(random_bytes(32));
+        config()->set('app.key', $newKey);
+        $this->app->forgetInstance('encrypter');
+        Crypt::clearResolvedInstance('encrypter');
+
+        $this->getJson(route('pegawai.data'))
+            ->assertOk()
+            ->assertJsonPath('data.0.6', 'Tidak tersedia');
+        Storage::disk('local')->assertExists($oldPath);
+
+        $this->get(route('pegawai.qr', $pegawai))->assertOk();
+
+        $newPath = $pegawai->fresh()->qr_code;
+        $this->assertNotSame($oldPath, $newPath);
+        $this->assertStringStartsWith('pegawai/qr-codes/v3-', $newPath);
+        Storage::disk('local')->assertMissing($oldPath);
+        Storage::disk('local')->assertExists($newPath);
+        $this->getJson(route('pegawai.data'))
+            ->assertOk()
+            ->assertJsonPath('data.0.6', 'Tersedia');
+    }
+
     public function test_qr_endpoint_reuses_an_existing_png(): void
     {
         Storage::fake('local');
+        $this->actingAs(User::factory()->create());
         $jabatan = Jabatan::create(['nama' => 'Operator']);
         $pegawai = Pegawai::create([
             'nama' => 'Andi Saputra',
@@ -448,6 +580,7 @@ class PegawaiControllerTest extends TestCase
     public function test_qr_download_endpoint_downloads_the_stored_png(): void
     {
         Storage::fake('local');
+        $this->actingAs(User::factory()->create());
         $jabatan = Jabatan::create(['nama' => 'Operator']);
         $pegawai = Pegawai::create([
             'nama' => 'Andi Saputra',
@@ -467,6 +600,8 @@ class PegawaiControllerTest extends TestCase
 
     public function test_qr_endpoint_returns_not_found_for_a_missing_pegawai(): void
     {
+        $this->actingAs(User::factory()->create());
+
         $this->get(route('pegawai.qr', 999))
             ->assertNotFound();
     }
@@ -509,6 +644,7 @@ class PegawaiControllerTest extends TestCase
 
     public function test_export_preserves_active_filters_and_escapes_spreadsheet_formulas(): void
     {
+        $this->actingAs(User::factory()->create());
         $jabatan = Jabatan::create(['nama' => 'Operator']);
 
         Pegawai::create([
@@ -535,5 +671,61 @@ class PegawaiControllerTest extends TestCase
         $this->assertStringContainsString("'=1+1", $response->streamedContent());
         $this->assertStringContainsString('Operator', $response->streamedContent());
         $this->assertStringNotContainsString('Pegawai Lain', $response->streamedContent());
+    }
+
+    public function test_export_contains_media_urls_when_available_and_unavailable_fallbacks(): void
+    {
+        Storage::fake('public');
+        Storage::fake('local');
+        $this->actingAs(User::factory()->create());
+        $jabatan = Jabatan::create(['nama' => 'Operator']);
+        $photoPath = 'pegawai/profile-photos/profile.png';
+        Storage::disk('public')->put($photoPath, 'profile-photo');
+
+        $pegawaiWithMedia = Pegawai::create([
+            'nama' => 'Andi Saputra',
+            'jabatan_id' => $jabatan->id,
+            'npp' => 'NPP-101',
+            'status' => 'aktif',
+            'profile_photo' => $photoPath,
+            'qr_code' => 'pegawai/qr-codes/101.png',
+        ]);
+        $this->get(route('pegawai.qr', $pegawaiWithMedia))->assertOk();
+        Pegawai::create([
+            'nama' => 'Budi Saputra',
+            'jabatan_id' => $jabatan->id,
+            'npp' => 'NPP-102',
+            'status' => 'aktif',
+            'profile_photo' => 'pegawai/profile-photos/missing.png',
+        ]);
+
+        $response = $this->get(route('pegawai.export'));
+
+        $response->assertOk()
+            ->assertHeader('content-type', 'text/csv; charset=UTF-8');
+
+        $csv = fopen('php://temp', 'r+');
+        fwrite($csv, $response->streamedContent());
+        rewind($csv);
+        $header = fgetcsv($csv);
+        $rowWithMedia = fgetcsv($csv);
+        $rowWithoutMedia = fgetcsv($csv);
+        fclose($csv);
+
+        $this->assertSame(['Name', 'Jabatan', 'NPP', 'Status', 'Profile Photo', 'QR Code'], $header);
+        $this->assertStringContainsString('/pegawai/', $rowWithMedia[4]);
+        $this->assertStringEndsWith('/foto', $rowWithMedia[4]);
+        $this->assertStringNotContainsString('/'.$pegawaiWithMedia->getKey().'/foto', $rowWithMedia[4]);
+        $this->assertStringContainsString('/pegawai/', $rowWithMedia[5]);
+        $this->assertStringEndsWith('/qr-code.png', $rowWithMedia[5]);
+        $this->assertStringNotContainsString('/'.$pegawaiWithMedia->getKey().'/qr-code.png', $rowWithMedia[5]);
+        $this->get($rowWithMedia[4])
+            ->assertOk()
+            ->assertStreamedContent('profile-photo');
+        $this->get($rowWithMedia[5])
+            ->assertOk()
+            ->assertHeader('Content-Type', 'image/png');
+        $this->assertSame('Tidak tersedia', $rowWithoutMedia[4]);
+        $this->assertSame('Tidak tersedia', $rowWithoutMedia[5]);
     }
 }

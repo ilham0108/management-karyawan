@@ -111,19 +111,14 @@ return [
                     'route' => 'dashboard',
                 ],
                 [
-                    'text' => 'Data Karyawan',
+                    'text' => 'Data Pegawai',
                     'icon' => 'profile',
                     'children' => [
                         [
-                            'key' => 'data-karyawan',
-                            'text' => 'Data Karyawan',
+                            'key' => 'data-pegawai',
+                            'text' => 'Data Pegawai',
                             'route' => 'pegawai.index',
                         ],
-                        // [
-                        //     'key' => 'scanner',
-                        //     'text' => 'Scan QR Pegawai',
-                        //     'route' => 'scanner.index',
-                        // ],
                         [
                             'key' => 'master-jabatan',
                             'text' => 'Master Jabatan',
