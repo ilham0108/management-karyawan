@@ -132,12 +132,6 @@ return [
             'label' => 'Sistem',
             'items' => [
                 [
-                    'key' => 'setting',
-                    'text' => 'Setting',
-                    'icon' => 'settings',
-                    'route' => 'setting.index',
-                ],
-                [
                     'key' => 'user',
                     'text' => 'User',
                     'icon' => 'profile',
@@ -176,7 +170,7 @@ return [
     // The Laravel edition's own documentation, not the HTML edition's — the
     // two cover different things, and a Blade developer sent to the static
     // template's docs finds nothing about panels, fields or filters.
-    'docs_url' => '',
+    'docs_url' => '/docs',
 
     /*
     |--------------------------------------------------------------------------

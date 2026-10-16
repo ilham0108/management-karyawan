@@ -21,6 +21,63 @@
     -webkit-overflow-scrolling: touch;
 }
 
+.docs-page {
+    grid-template-columns: minmax(220px, 1fr) minmax(0, 3fr);
+    align-items: start;
+}
+
+.docs-page__sidebar {
+    position: sticky;
+    top: 72px;
+}
+
+.docs-page__content {
+    display: grid;
+    min-width: 0;
+    gap: 16px;
+}
+
+.docs-page__content section {
+    min-width: 0;
+    scroll-margin-top: 72px;
+}
+
+.docs-page__navigation ul {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.docs-page__navigation a {
+    display: block;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    text-decoration: none;
+}
+
+.docs-page__navigation a:hover,
+.docs-page__navigation a:focus-visible {
+    background: var(--primary-lt);
+    color: var(--primary);
+}
+
+.docs-page .card-body {
+    padding: 24px;
+}
+
+@media (max-width: 900px) {
+    .docs-page {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .docs-page__sidebar {
+        position: static;
+    }
+}
+
 .pegawai-table-hint {
     display: none;
 }

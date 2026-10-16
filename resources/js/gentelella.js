@@ -6,10 +6,49 @@
 // their host element is present, so nothing unused ships.
 import 'gentelella';
 import { closeModal, showModal } from 'gentelella/v4/modal';
+import { openMenu } from 'gentelella/v4/menus';
+import { signOut } from 'gentelella/v4/shell-config';
 import { showToast } from 'gentelella/v4/toast';
 
 // Your overrides, loaded after the design system so they win.
 import '../css/gentelella.scss';
+
+function showAccountSignOutConfirmation() {
+    showModal({
+        title: 'Sign out?',
+        size: 'sm',
+        body: '<p style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin:0">You\'ll need to sign back in to access your dashboard. Any unsaved changes will be lost.</p>',
+        actions: [
+            { label: 'Cancel', variant: 'ghost' },
+            {
+                label: 'Sign out',
+                variant: 'primary',
+                action: () => {
+                    showToast('Signed out', { variant: 'success' });
+                    setTimeout(() => signOut('login.html'), 600);
+                },
+            },
+        ],
+    });
+}
+
+document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) {
+        return;
+    }
+
+    const accountMenuTrigger = event.target.closest('.tb-avatar, .sidebar-user .more-btn');
+
+    if (!(accountMenuTrigger instanceof HTMLElement)) {
+        return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    openMenu(accountMenuTrigger, [
+        { label: 'Sign out', action: showAccountSignOutConfirmation },
+    ]);
+}, true);
 
 const addPegawaiButton = document.querySelector('[data-open-pegawai-modal]');
 const pegawaiFormTemplate = document.querySelector('#pegawai-modal-template');

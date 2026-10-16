@@ -18,6 +18,10 @@ Route::middleware([
         return view('dashboard');
     })->name('dashboard');
 
+    Route::get('/docs', function () {
+        return view('docs');
+    })->name('docs.index');
+
     Route::get('/jabatan', [JabatanController::class, 'index'])->name('jabatan.index');
     Route::post('/jabatan', [JabatanController::class, 'store'])->name('jabatan.store');
     Route::put('/jabatan/{jabatan}', [JabatanController::class, 'update'])->name('jabatan.update');
